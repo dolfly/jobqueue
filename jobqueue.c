@@ -265,7 +265,15 @@ int main(int argc, char *argv[])
 		if (use_stdin) {
 			joblist = stdin;
 		} else {
+			if (i == argc)
+				break;
+
 			joblist = fopen(argv[i], "r");
+
+			if (joblist == NULL) {
+				fprintf(stderr, "%s does not exist\n", argv[i]);
+				continue;
+			}
 			i++;
 		}
 
