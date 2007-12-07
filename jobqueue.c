@@ -32,9 +32,53 @@
 
 static void print_help(void)
 {
-	printf("Help not implemented\n");
+	printf("jobqueue %s by Heikki Orsila <heikki.orsila@iki.fi>\n", VERSION);
+	printf("\n"
+	       "SYNTAX:\n"
+	       "\tjobqueue [-n x] [FILE ...]\n"
+	       "\n"
+	       "jobqueue reads commands from files, or if no files are given, jobqueue reads\n"
+	       "commands from stdin. It executes each command (job) by giving an\n"
+	       "execution id as a parameter for the command.\n"
+	       "\n"
+	       "Execution id defines an execution place where the job should be run.\n"
+	       "Execution id is an integer from 0 to (x - 1).  By default x is 1, but\n"
+	       "\"-n x\" can be used to set x. Jobqueue keeps at most x processes running,\n"
+	       "and issues new jobs as the running jobs end. x > 1 is used to facilitate\n"
+	       "multiprocessing jobs.\n"
+	       "\n"
+	       "EXAMPLE: run echo 5 times printing the execution\n"
+	       "\n"
+	       "\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2\n"
+	       "\n"
+	       "prints something like \"0 1 0 1 0\"\n");
 }
 
+
+
+static pid_t polling_fork(void)
+{
+	pid_t child;
+
+	while (1) {
+		child = fork();
+		
+		if (child > 0) {
+			/* The father just exits() */
+			return child;
+
+		} else if (child == 0) {
+			/* The child does the execution, so break out */
+			return 0;
+		}
+
+		/* Can not fork(): sleep a bit and try again */
+		sleep(1);
+	}
+
+	/* never executed */
+	return 0;
+}
 
 
 static void run(char *cmd, int ps, int fd)
@@ -71,6 +115,9 @@ void schedule(int n, FILE *joblist)
 	ssize_t ret;
 	size_t len;
 	size_t jobs = 0;
+	size_t jobsdone = 0;
+	int exitmode = 0;
+	pid_t child;
 
 	assert(n > 0);
 
@@ -88,24 +135,40 @@ void schedule(int n, FILE *joblist)
 				break;
 		}
 
-		if (ps == n) {
+		if (exitmode || ps == n) {
 			ret = read(p[0], &ps, sizeof ps);
+			if (ret == -1) {
+				if (errno == EAGAIN || errno == EINTR)
+					continue;
 
-			if (ret == 0)
-				die("Job queue was broken\n");
+				die("read %zd: %s)\n", ret, strerror(errno));
+			} else if (ret == 0) {
+				die("Job queue pipe was broken\n");
+			}
 
-			assert(ret == sizeof(ps));
+			if (ret != sizeof(ps))
+				die("Unaligned read: returned %zd\n", ret);
 
 			busy[ps] = 0;
+
+			jobsdone++;
+
+			if (exitmode && jobs == jobsdone) {
+				fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
+				break;
+			}
 
 		} else {
 			/* Read a new job and strip \n away from the command */
 			if (fgets(cmd, sizeof cmd, joblist) == NULL) {
-				if (!feof(joblist))
-					continue;
+				/* Check for end of file. Noticed that
+				   fgets() could return NULL when a child
+				   exits. Enter exitmode that waits for
+				   children to finish. */
+				if (feof(joblist))
+					exitmode = 1;
 
-				fprintf(stderr, "All jobs done (%zd)\n", jobs);
-				break;
+				continue;
 			}
 
 			len = strlen(cmd);
@@ -122,8 +185,9 @@ void schedule(int n, FILE *joblist)
 			jobs++;
 			busy[ps] = 1;
 
-			if (fork() == 0) {
-				/* Child closes some file descriptors */
+			child = polling_fork();
+			if (child == 0) {
+				/* Close some child file descriptors */
 				close(0);
 				close(p[0]);
 
@@ -138,8 +202,7 @@ void schedule(int n, FILE *joblist)
 
 static void trivial_sigchld(int signum)
 {
-	int status;
-	waitpid(-1, &status, WNOHANG);
+	while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
 
@@ -169,7 +232,7 @@ int main(int argc, char *argv[])
 
 	setup_child_handler();
 
-	while ((ret = getopt(argc, argv, "n:h")) != -1) {
+	while ((ret = getopt(argc, argv, "hn:v")) != -1) {
 		switch (ret) {
 		case 'h':
 			print_help();
@@ -183,6 +246,10 @@ int main(int argc, char *argv[])
 			}
 			n = l;
 			break;
+
+		case 'v':
+			printf("jobqueue %s\n", VERSION);
+			exit(0);
 
 		default:
 			fprintf(stderr, "Impossible option.\n");
