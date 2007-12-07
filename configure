@@ -1,0 +1,47 @@
+#!/bin/sh
+
+prefix=/usr/local
+version="0.01"
+
+for opt in "$@" ; do
+	case $opt in
+	--prefix=*)
+		prefix=`echo $opt | sed -n 's/--prefix=\(.*\)/\1/p'`
+		;;
+	--package-prefix=*)
+		packageprefix=`echo $opt | sed -n 's/--package-prefix=\(.*\)/\1/p'`
+		;;
+	--help)
+		echo ""
+		echo "Valid options are:"
+		echo "--prefix=dir           Install to prefix 'dir'"
+ 		echo "--package-prefix=dest  Pretend to install to the prefix,"
+		echo "                       but copy files to 'dest/prefix' on make install"
+		exit
+		;;
+	esac
+done
+
+rm -f stdint.h
+cat > stdinttest.c <<EOF
+#include <stdint.h>
+int main(void) {uint8_t a = 0; uint32_t b = 0; return 0; }
+EOF
+gcc -o stdinttest stdinttest.c 2>/dev/null
+if test "$?" != "0" ; then
+    echo "#include <inttypes.h>" > stdint.h
+    echo "Warning: stdint.h is missing (needed for portable types)"
+    echo ""
+fi
+
+if test ! -z "$packageprefix" ; then
+    prefix="$packageprefix/$prefix"
+fi
+
+sed -e "s|{PREFIX}|$prefix|g" -e "s|{VERSION}|$version|" < Makefile.in > Makefile
+
+echo "#define VERSION \"$version\"" > version.h
+
+echo "Would install binary to directory $prefix/bin."
+echo ""
+echo "Configure succesful."

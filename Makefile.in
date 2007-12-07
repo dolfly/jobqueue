@@ -1,0 +1,17 @@
+CC = gcc
+CFLAGS = -Wall -O2 -g -I.
+LDFLAGS = -lm
+DDIR = jobqueue-{VERSION}
+
+jobqueue:	jobqueue.c version.h
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+
+install:	jobqueue
+	install jobqueue {PREFIX}/bin/
+
+clean:	
+	rm -f jobqueue
+
+mydist:	
+	mkdir -p $(DDIR)
+	cp ChangeLog Makefile.in configure jobqueue.c $(DDIR)/
