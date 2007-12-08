@@ -30,29 +30,33 @@
   } while(0)
 
 
+static const char *USAGE =
+"\n"
+"SYNTAX:\n"
+"\tjobqueue [-n x] [FILE ...]\n"
+"\n"
+"jobqueue is a tool for executing lists of jobs on several processors or\n"
+"machines in parallel. jobqueue reads commands (jobs) from files, or if no\n"
+"files are given, jobqueue reads commands from stdin. Each command is a line\n"
+"read from FILE or stdin. Each job is executed\n"
+"by giving an additional place id as a parameter for the command.\n"
+"Place id defines a virtual execution place for the job. Place id\n"
+"can be used for multiprocessing jobs on several processors or machines.\n"
+"The place id is an integer from 0 to (x - 1).  By default x is 1, but\n"
+"\"-n x\" can be used to set it. Jobqueue keeps at most x jobs running\n"
+"and issues new jobs as the running jobs end.\n"
+"\n"
+"EXAMPLE: run echo 5 times printing the execution\n"
+"\n"
+"\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2\n"
+"\n"
+"prints something like \"0 1 0 1 0\"\n";
+
+
 static void print_help(void)
 {
 	printf("jobqueue %s by Heikki Orsila <heikki.orsila@iki.fi>\n", VERSION);
-	printf("\n"
-	       "SYNTAX:\n"
-	       "\tjobqueue [-n x] [FILE ...]\n"
-	       "\n"
-	       "jobqueue is a tool for executing lists of jobs on several processors or\n"
-	       "machines in parallel. jobqueue reads commands (jobs) from files, or if no\n"
-	       "files are given, jobqueue reads commands from stdin. Each command is a line\n"
-	       "read from FILE or stdin. Each job is executed\n"
-	       "by giving an additional place id as a parameter for the command.\n"
-	       "Place id defines a virtual execution place for the job. Place id\n"
-	       "can be used for multiprocessing jobs on several processors or machines.\n"
-	       "The place id is an integer from 0 to (x - 1).  By default x is 1, but\n"
-	       "\"-n x\" can be used to set it. Jobqueue keeps at most x jobs running\n"
-	       "and issues new jobs as the running jobs end.\n"
-	       "\n"
-	       "EXAMPLE: run echo 5 times printing the execution\n"
-	       "\n"
-	       "\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2\n"
-	       "\n"
-	       "prints something like \"0 1 0 1 0\"\n");
+	printf("%s", USAGE);
 }
 
 
