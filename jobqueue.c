@@ -107,37 +107,61 @@ static void run(char *cmd, int ps, int fd)
 }
 
 
-void schedule(int n, FILE *joblist)
+/* Read a line from file 'f' to buffer 'buf' with size 'buflen', and
+ * strip \n away
+ */
+static ssize_t read_stripped_line(char *buf, size_t buflen, FILE *f)
+{
+	size_t len;
+
+	while (fgets(buf, buflen, f) == NULL) {
+		/* It is very important to check for EOF. fgets() may be unable
+		   to restart after SIGCHLD. */
+		if (feof(f))
+			return -1;
+	}
+
+	len = strlen(buf);
+
+	if (buf[len - 1] == '\n') {
+		len--;
+		buf[len] = 0;
+	}
+
+	return len;
+}
+
+
+static void schedule(int nprocesses, FILE *joblist)
 {
 	char cmd[MAX_CMD_SIZE];
 	char *busy;
-	int ps;
+	int pindex;
 	int p[2];
 	ssize_t ret;
-	size_t len;
-	size_t jobs = 0;
+	size_t jobsread = 0;
 	size_t jobsdone = 0;
 	int exitmode = 0;
 	pid_t child;
 
-	assert(n > 0);
+	assert(nprocesses > 0);
 
 	if (pipe(p))
 		die("Can not create a pipe\n");
 
 	/* All processing stations are not busy in the beginning -> calloc() */
-	busy = calloc(n, 1);
+	busy = calloc(nprocesses, 1);
 	if (busy == NULL)
 		die("Out of memory\n");
 
 	while (1) {
-		for (ps = 0; ps < n; ps++) {
-			if (!busy[ps])
+		for (pindex = 0; pindex < nprocesses; pindex++) {
+			if (!busy[pindex])
 				break;
 		}
 
-		if (exitmode || ps == n) {
-			ret = read(p[0], &ps, sizeof ps);
+		if (exitmode || pindex == nprocesses) {
+			ret = read(p[0], &pindex, sizeof pindex);
 			if (ret == -1) {
 				if (errno == EAGAIN || errno == EINTR)
 					continue;
@@ -147,44 +171,33 @@ void schedule(int n, FILE *joblist)
 				die("Job queue pipe was broken\n");
 			}
 
-			if (ret != sizeof(ps))
+			if (ret != sizeof(pindex))
 				die("Unaligned read: returned %zd\n", ret);
 
-			busy[ps] = 0;
+			busy[pindex] = 0;
 
 			jobsdone++;
 
-			if (exitmode && jobs == jobsdone) {
+			if (exitmode && jobsread == jobsdone) {
 				fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
 				break;
 			}
 
 		} else {
+
 			/* Read a new job and strip \n away from the command */
-			if (fgets(cmd, sizeof cmd, joblist) == NULL) {
-				/* Check for end of file. Noticed that
-				   fgets() could return NULL when a child
-				   exits. Enter exitmode that waits for
-				   children to finish. */
-				if (feof(joblist))
-					exitmode = 1;
-
+			ret = read_stripped_line(cmd, sizeof cmd, joblist);
+			if (ret < 0) {
+				exitmode = 1;
 				continue;
-			}
-
-			len = strlen(cmd);
-
-			if (cmd[len - 1] == '\n') {
-				len--;
-				cmd[len] = 0;
 			}
 
 			/* Ignore empty lines and lines beginning with '#' */
-			if (len == 0 || cmd[0] == '#')
+			if (ret == 0 || cmd[0] == '#')
 				continue;
 
-			jobs++;
-			busy[ps] = 1;
+			jobsread++;
+			busy[pindex] = 1;
 
 			child = polling_fork();
 			if (child == 0) {
@@ -192,7 +205,7 @@ void schedule(int n, FILE *joblist)
 				close(0);
 				close(p[0]);
 
-				run(cmd, ps, p[1]);
+				run(cmd, pindex, p[1]);
 
 				exit(0);
 			}
