@@ -68,21 +68,14 @@ static pid_t polling_fork(void)
 	while (1) {
 		child = fork();
 		
-		if (child > 0) {
-			/* The father just exits() */
-			return child;
-
-		} else if (child == 0) {
-			/* The child does the execution, so break out */
-			return 0;
-		}
+		if (child >= 0)
+			break;
 
 		/* Can not fork(): sleep a bit and try again */
 		sleep(1);
 	}
 
-	/* never executed */
-	return 0;
+	return child;
 }
 
 
@@ -147,7 +140,6 @@ static void schedule(int nprocesses, FILE *joblist)
 	size_t jobsread = 0;
 	size_t jobsdone = 0;
 	int exitmode = 0;
-	pid_t child;
 
 	assert(nprocesses > 0);
 
@@ -160,6 +152,7 @@ static void schedule(int nprocesses, FILE *joblist)
 		die("Out of memory\n");
 
 	while (1) {
+		/* Find a free execution place */
 		for (pindex = 0; pindex < nprocesses; pindex++) {
 			if (!busy[pindex])
 				break;
@@ -167,7 +160,7 @@ static void schedule(int nprocesses, FILE *joblist)
 
 		if (exitmode || pindex == nprocesses) {
 			ret = read(p[0], &pindex, sizeof pindex);
-			if (ret == -1) {
+			if (ret < 0) {
 				if (errno == EAGAIN || errno == EINTR)
 					continue;
 
@@ -204,8 +197,7 @@ static void schedule(int nprocesses, FILE *joblist)
 			jobsread++;
 			busy[pindex] = 1;
 
-			child = polling_fork();
-			if (child == 0) {
+			if (polling_fork() == 0) {
 				/* Close some child file descriptors */
 				close(0);
 				close(p[0]);
