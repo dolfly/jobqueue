@@ -9,5 +9,8 @@ jobqueue:	jobqueue.c version.h
 install:	jobqueue
 	install jobqueue "$(PREFIX)/bin/"
 
+check:	
+	./selftest.sh
+
 clean:	
 	rm -f jobqueue
