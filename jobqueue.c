@@ -25,7 +25,7 @@
 
 
 #define die(fmt, args...) do { \
-    fprintf(stderr, "%s:%d: %s: " fmt, __FILE__, __LINE__, __func__, ## args); \
+    fprintf(stderr, fmt, ## args); \
     exit(1); \
   } while(0)
 
@@ -149,7 +149,7 @@ static void schedule(int nprocesses, FILE *joblist)
 	/* All processing stations are not busy in the beginning -> calloc() */
 	busy = calloc(nprocesses, 1);
 	if (busy == NULL)
-		die("Out of memory\n");
+		die("No memory for process array\n");
 
 	while (1) {
 		/* Find a free execution place */
@@ -223,11 +223,8 @@ static void setup_child_handler(void)
 		.sa_handler = trivial_sigchld,
 		.sa_flags = SA_NOCLDSTOP};
 
-	if (sigaction(SIGCHLD, &act, NULL) < 0) {
-		fprintf(stderr, "Can not install child handler: %s\n",
-			strerror(errno));
-		exit(1);
-	}
+	if (sigaction(SIGCHLD, &act, NULL) < 0)
+		die("Can not install child handler: %s\n", strerror(errno));
 }
 
 
@@ -252,10 +249,10 @@ int main(int argc, char *argv[])
 
 		case 'n':
 			l = strtol(optarg, &endptr, 10);
-			if ((l <= 0 || l >= INT_MAX) || *endptr != 0) {
-				fprintf(stderr, "Invalid parameter: %s\n", optarg);
-				exit(1);
-			}
+
+			if ((l <= 0 || l >= INT_MAX) || *endptr != 0)
+				die("Invalid parameter: %s\n", optarg);
+
 			n = l;
 			break;
 
@@ -264,8 +261,7 @@ int main(int argc, char *argv[])
 			exit(0);
 
 		default:
-			fprintf(stderr, "Impossible option.\n");
-			exit(1);
+			die("Impossible option\n");
 		}
 	}
 
