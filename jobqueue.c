@@ -238,6 +238,7 @@ int main(int argc, char *argv[])
 	int l;
 	char *endptr;
 	FILE *joblist;
+	char *jobfilename;
 	int i;
 	int use_stdin;
 
@@ -279,13 +280,16 @@ int main(int argc, char *argv[])
 			if (i == argc)
 				break;
 
-			joblist = fopen(argv[i], "r");
+			jobfilename = argv[i];
+			i++;
+
+			joblist = fopen(jobfilename, "r");
 
 			if (joblist == NULL) {
-				fprintf(stderr, "%s does not exist\n", argv[i]);
+				fprintf(stderr, "Can not open file: %s\n",
+					jobfilename);
 				continue;
 			}
-			i++;
 		}
 
 		schedule(n, joblist);
