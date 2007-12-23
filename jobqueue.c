@@ -30,27 +30,76 @@
   } while(0)
 
 
+/* Pass an execution place id parameter for each job if executionplace != 0 */
+static int executionplace = 0;
+
+
 static const char *USAGE =
 "\n"
 "SYNTAX:\n"
-"\tjobqueue [-n x] [FILE ...]\n"
+"\tjobqueue [-i] [-n x] [FILE ...]\n"
 "\n"
 "jobqueue is a tool for executing lists of jobs on several processors or\n"
-"machines in parallel. jobqueue reads commands (jobs) from files, or if no\n"
-"files are given, jobqueue reads commands from stdin. Each command is a line\n"
-"read from FILE or stdin. Each job is executed\n"
-"by giving an additional place id as a parameter for the command.\n"
-"Place id defines a virtual execution place for the job. Place id\n"
-"can be used for multiprocessing jobs on several processors or machines.\n"
-"The place id is an integer from 0 to (x - 1).  By default x is 1, but\n"
-"\"-n x\" can be used to set it. Jobqueue keeps at most x jobs running\n"
-"and issues new jobs as the running jobs end.\n"
+"machines in parallel. jobqueue reads jobs (shell commands) from files. If no\n"
+"files are given, jobqueue reads jobs from stdin. Each job is executed in a\n"
+"shell environment (man 3 system).\n"
 "\n"
-"EXAMPLE: run echo 5 times printing the execution\n"
+"If \"-n x\" is used, jobqueue keeps at most x jobs running in parallel.\n"
+"Jobqueue issues new jobs as older jobs are finished.\n"
 "\n"
-"\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2\n"
+"If -i is given, each job is executed by passing it an execution place id.\n"
+"The execution place defines a virtual execution place for the job, which\n"
+"can be used to determine a machine to execute the job.\n"
+"The place id is an integer from 1 to x (given with -n).\n"
 "\n"
-"prints something like \"0 1 0 1 0\"\n";
+"EXAMPLE 1: A file named MACHINES contains a list of machines to process\n"
+"jobs from a job file named JOBS. Each line in the JOBS file follows the\n"
+"same pattern:\n"
+"./myscript data0\n"
+"./myscript data1\n"
+"./myscript data2\n"
+"...\n"
+"\n"
+"MACHINES file contains 4 machines:\n"
+"machine0\n"
+"machine1\n"
+"machine2\n"
+"machine3\n"
+"\n"
+"./myscript might do something like this:\n"
+"#!/bin/bash\n"
+"\n"
+"# This is the dataX parameter from JOBS file\n"
+"data=\"$1\"\n"
+"# This is the execution place passed from the jobqueue: in range 0-3\n"
+"machinenumber=$2\n"
+"\n"
+"# determine the machine that will execute this job\n"
+"machine=$(head -n $machinenumber MACHINES |tail -n1)\n"
+"\n"
+"echo $machine $data\n"
+"ssh $machine remotecommand $data\n"
+"\n"
+"To execute jobs on the machines, issue:\n"
+"\n"
+"jobqueue -n 4 -i JOBS\n"
+"\n"
+"Execution will print something like this:\n"
+"machine0 data0\n"
+"machine1 data1\n"
+"machine2 data2\n"
+"machine1 data4\n"
+"machine3 data3\n"
+"machine0 data5\n"
+"machine1 data7\n"
+"machine2 data6\n"
+"All jobs done (8)\n"
+"\n"
+"EXAMPLE 2: run echo 5 times printing the execution place each time\n"
+"\n"
+"\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2 -i\n"
+"\n"
+"prints something like \"1 2 1 2 1\".\n";
 
 
 static void print_help(void)
@@ -79,12 +128,17 @@ static pid_t polling_fork(void)
 }
 
 
-static void run(char *cmd, int ps, int fd)
+static void run(const char *cmd, int ps, int fd)
 {
 	ssize_t ret;
 	char run_cmd[MAX_CMD_SIZE];
 
-	ret = snprintf(run_cmd, sizeof run_cmd, "%s %d", cmd, ps);
+	if (executionplace) {
+		ret = snprintf(run_cmd, sizeof run_cmd, "%s %d", cmd, ps + 1);
+	} else {
+		ret = snprintf(run_cmd, sizeof run_cmd, "%s", cmd);
+	}
+
 	if (ret >= sizeof(run_cmd))
 		die("Too long a command: %s\n", cmd); /* cmd, not run_cmd */
 
@@ -241,11 +295,15 @@ int main(int argc, char *argv[])
 
 	setup_child_handler();
 
-	while ((ret = getopt(argc, argv, "hn:v")) != -1) {
+	while ((ret = getopt(argc, argv, "hin:v")) != -1) {
 		switch (ret) {
 		case 'h':
 			print_help();
 			exit(0);
+
+		case 'i':
+			executionplace = 1;
+			break;
 
 		case 'n':
 			l = strtol(optarg, &endptr, 10);
