@@ -166,10 +166,9 @@ static ssize_t read_stripped_line(char *buf, size_t buflen, FILE *f)
 	size_t len;
 
 	while (fgets(buf, buflen, f) == NULL) {
-		/* fgets() may be unable  to restart after SIGCHLD:
-		   it can return NULL, and therefore feof() and ferror() need
-		   be tested */
-		if (feof(f) || ferror(f))
+		/* fgets() may be unable to restart after SIGCHLD:
+		   it can return NULL, and feof() needs to be tested */
+		if (feof(f))
 			return -1;
 	}
 
