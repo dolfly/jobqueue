@@ -183,7 +183,7 @@ static ssize_t read_stripped_line(char *buf, size_t buflen, FILE *f)
 }
 
 
-static void schedule(int nprocesses, FILE *joblist)
+static size_t schedule(int nprocesses, FILE *joblist)
 {
 	char cmd[MAX_CMD_SIZE];
 	char *busy;
@@ -235,10 +235,8 @@ static void schedule(int nprocesses, FILE *joblist)
 			continue;
 		}
 
-		if (exitmode && jobsdone == jobsread) {
-			fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
+		if (exitmode && jobsdone == jobsread)
 			break;
-		}
 
 		/* Read a new job and strip \n away from the command */
 		ret = read_stripped_line(cmd, sizeof cmd, joblist);
@@ -264,6 +262,8 @@ static void schedule(int nprocesses, FILE *joblist)
 			exit(0);
 		}
 	}
+
+	return jobsdone;
 }
 
 
@@ -294,6 +294,7 @@ int main(int argc, char *argv[])
 	char *jobfilename;
 	int i;
 	int use_stdin;
+	size_t jobsdone = 0;
 
 	setup_child_handler();
 
@@ -348,13 +349,15 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		schedule(n, joblist);
+		jobsdone += schedule(n, joblist);
 
 		fclose(joblist);
 
 		if (use_stdin)
 			break;
 	}
+
+	fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
 
 	return 0;
 }
