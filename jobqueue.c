@@ -32,7 +32,9 @@
 
 
 /* Pass an execution place id parameter for each job if executionplace != 0 */
-static int executionplace = 0;
+static int executionplace;
+
+static int verbosemode;
 
 static struct vplist jobfilenames;
 
@@ -170,6 +172,9 @@ static void run(const char *cmd, int ps, int fd)
 
 	if (ret >= sizeof(run_cmd))
 		die("Too long a command: %s\n", cmd); /* cmd, not run_cmd */
+
+	if (verbosemode)
+		fprintf(stderr, "EXECUTE: %s\n", run_cmd);
 
 	ret = system(run_cmd);
 	if (ret == -1)
@@ -335,9 +340,21 @@ int main(int argc, char *argv[])
 	int i;
 	int use_stdin;
 
+	enum jobqueueoptions {
+		OPT_VERSION = 1000,
+	};
+
+	const struct option longopts[] = {
+		{.name = "version", .has_arg = 0, .flag = NULL, .val = OPT_VERSION},
+		{.name = NULL}};
+
 	setup_child_handler();
 
-	while ((ret = getopt(argc, argv, "hin:v")) != -1) {
+	while (1) {
+		ret = getopt_long(argc, argv, "hin:v", longopts, NULL);
+		if (ret == -1)
+			break;
+
 		switch (ret) {
 		case 'h':
 			print_help();
@@ -357,6 +374,10 @@ int main(int argc, char *argv[])
 			break;
 
 		case 'v':
+			verbosemode = 1;
+			break;
+
+		case OPT_VERSION:
 			printf("jobqueue %s\n", VERSION);
 			exit(0);
 
