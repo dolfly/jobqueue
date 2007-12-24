@@ -20,4 +20,4 @@ check:
 	./selftest.sh
 
 clean:	
-	rm -f jobqueue
+	rm -f jobqueue *.o
