@@ -2,6 +2,8 @@ List of features to implement:
 
 	* -m machinelist
 
+	* issue multiple jobs / node (useful for clusters of SMP machines)
+
 	* progress meter
 
 	* simulation mode: no execution
