@@ -1,0 +1,15 @@
+List of features to implement:
+
+	* -m machinelist
+
+	* progress meter
+
+	* simulation mode: no execution
+
+	* randomize node assignment
+
+	* re-run for failed jobs
+		* support for node failures -> transfer jobs
+
+	* task graph scheduling
+		* pure simulation mode: do only scheduling
