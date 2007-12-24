@@ -19,6 +19,7 @@
 
 
 #include "version.h"
+#include "vplist.h"
 
 
 #define MAX_CMD_SIZE 65536
@@ -33,6 +34,7 @@
 /* Pass an execution place id parameter for each job if executionplace != 0 */
 static int executionplace = 0;
 
+static struct vplist jobfilenames;
 
 static const char *USAGE =
 "\n"
@@ -100,6 +102,33 @@ static const char *USAGE =
 "\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2 -i\n"
 "\n"
 "prints something like \"1 2 1 2 1\".\n";
+
+
+/* We try to fopen() each file in the jobfiles list, and return the first
+ * successfully opened file. Otherwise return NULL.
+ */
+static FILE *get_next_jobfile(void)
+{
+	char *fname;
+	FILE *f = NULL;
+
+	do {
+		fname = vplist_pop_head(&jobfilenames);
+
+		if (fname == NULL)
+			break;
+
+		f = fopen(fname, "r");
+
+		if (f == NULL)
+			fprintf(stderr, "jobqueue: can't open %s\n", fname);
+
+		free(fname);
+
+	} while (f == NULL);
+
+	return f;
+}
 
 
 static void print_help(void)
@@ -183,7 +212,7 @@ static ssize_t read_stripped_line(char *buf, size_t buflen, FILE *f)
 }
 
 
-static size_t schedule(int nprocesses, FILE *joblist)
+static void schedule(int nprocesses)
 {
 	char cmd[MAX_CMD_SIZE];
 	char *busy;
@@ -193,6 +222,11 @@ static size_t schedule(int nprocesses, FILE *joblist)
 	size_t jobsread = 0;
 	size_t jobsdone = 0;
 	int exitmode = 0;
+	FILE *jobfile;
+
+	jobfile = get_next_jobfile();
+	if (jobfile == NULL)
+		exitmode = 1; /* If no valid files, go to exitmode */
 
 	assert(nprocesses > 0);
 
@@ -239,9 +273,16 @@ static size_t schedule(int nprocesses, FILE *joblist)
 			break;
 
 		/* Read a new job and strip \n away from the command */
-		ret = read_stripped_line(cmd, sizeof cmd, joblist);
+		ret = read_stripped_line(cmd, sizeof cmd, jobfile);
 		if (ret < 0) {
-			exitmode = 1;
+
+			fclose(jobfile);
+
+			jobfile = get_next_jobfile();
+
+			if (jobfile == NULL)
+				exitmode = 1; /* No more jobfiles -> exit */
+
 			continue;
 		}
 
@@ -263,7 +304,7 @@ static size_t schedule(int nprocesses, FILE *joblist)
 		}
 	}
 
-	return jobsdone;
+	fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
 }
 
 
@@ -290,11 +331,9 @@ int main(int argc, char *argv[])
 	int n = 1;
 	int l;
 	char *endptr;
-	FILE *joblist;
 	char *jobfilename;
 	int i;
 	int use_stdin;
-	size_t jobsdone = 0;
 
 	setup_child_handler();
 
@@ -326,38 +365,34 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	vplist_init(&jobfilenames);
 	
 	use_stdin = (optind == argc);
 	i = optind;
 
 	while (1) {
 		if (use_stdin) {
-			joblist = stdin;
+			jobfilename = strdup("/dev/stdin");
+
 		} else {
 			if (i == argc)
 				break;
 
-			jobfilename = argv[i];
+			jobfilename = strdup(argv[i]);
 			i++;
-
-			joblist = fopen(jobfilename, "r");
-
-			if (joblist == NULL) {
-				fprintf(stderr, "Can not open file: %s\n",
-					jobfilename);
-				continue;
-			}
 		}
 
-		jobsdone += schedule(n, joblist);
+		if (jobfilename == NULL)
+			die("Can not allocate a filename for a job list\n");
 
-		fclose(joblist);
+		if (vplist_append(&jobfilenames, jobfilename))
+			die("No memory for jobs\n");
 
 		if (use_stdin)
 			break;
 	}
 
-	fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
+	schedule(n);
 
 	return 0;
 }

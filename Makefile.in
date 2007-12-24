@@ -2,9 +2,16 @@ CC = gcc
 CFLAGS = -Wall -O2 -g -I.
 LDFLAGS = -lm
 PREFIX = {PREFIX}
+MODULES = jobqueue.o vplist.o
 
-jobqueue:	jobqueue.c version.h
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+jobqueue:	$(MODULES)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(MODULES)
+
+%.o:	%.c
+	$(CC) $(CFLAGS) -c $<
+
+jobqueue.o:	jobqueue.c vplist.h version.h
+vplist.o:	vplist.c vplist.h
 
 install:	jobqueue
 	install jobqueue "$(PREFIX)/bin/"
