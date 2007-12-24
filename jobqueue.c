@@ -32,24 +32,24 @@ static struct vplist jobfilenames;
 static const char *USAGE =
 "\n"
 "SYNTAX:\n"
-"\tjobqueue [-i] [-n x] [-v] [--version] [FILE ...]\n"
+"\tjobqueue [-e] [-n x] [-v] [--version] [FILE ...]\n"
 "\n"
 "jobqueue is a tool for executing lists of jobs on several processors or\n"
 "machines in parallel. jobqueue reads jobs (shell commands) from files. If no\n"
 "files are given, jobqueue reads jobs from stdin. Each job is executed in a\n"
 "shell environment (man 3 system).\n"
 "\n"
-" \"-n x\", jobqueue keeps at most x jobs running in parallel.\n"
+" -n x / --nodes=x, jobqueue keeps at most x jobs running in parallel.\n"
 "    Jobqueue issues new jobs as older jobs are finished.\n"
 "\n"
-" -i, each job is executed by passing an execution place id as a parameter.\n"
-"    The execution place defines a virtual execution place for the job, which\n"
-"    can be used to determine a machine to execute the job.\n"
+" -e / --execution-place, each job is executed by passing an execution place id\n"
+"    as a parameter. The execution place defines a virtual execution place for\n"
+"    the job, which can be used to determine a machine to execute the job.\n"
 "    The place id is an integer from 1 to x (given with -n).\n"
 "    If command \"foo\" is executed from a job list, jobqueue executes \"foo x\",\n"
 "    where x is the execution place id.\n"
 "\n"
-" -v, enter verbose mode. Print each command that is executed.\n"
+" -v / --verbose, enter verbose mode. Print each command that is executed.\n"
 "\n"
 " --version, print version number\n"
 "\n"
@@ -83,7 +83,7 @@ static const char *USAGE =
 "\n"
 "To execute jobs on the machines, issue:\n"
 "\n"
-"jobqueue -n 4 -i JOBS\n"
+"jobqueue -n 4 -e JOBS\n"
 "\n"
 "Execution will print something like this:\n"
 "machine0 data0\n"
@@ -98,7 +98,7 @@ static const char *USAGE =
 "\n"
 "EXAMPLE 2: run echo 5 times printing the execution place each time\n"
 "\n"
-"\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2 -i\n"
+"\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2 -e\n"
 "\n"
 "prints something like \"1 2 1 2 1\".\n";
 
@@ -167,30 +167,36 @@ int main(int argc, char *argv[])
 	int use_stdin;
 
 	enum jobqueueoptions {
-		OPT_HELP    = 'h',
-		OPT_VERSION = 1000,
+		OPT_EXECUTION_PLACE = 'e',
+		OPT_HELP            = 'h',
+		OPT_NODES           = 'n',
+		OPT_VERBOSE         = 'v',
+		OPT_VERSION         = 1000,
 	};
 
 	const struct option longopts[] = {
-		{.name = "help",    .has_arg = 0, .flag = NULL, .val = OPT_HELP},
-		{.name = "version", .has_arg = 0, .flag = NULL, .val = OPT_VERSION},
+		{.name = "help",    .has_arg = 0, .val = OPT_HELP},
+		{.name = "execution-place", .has_arg = 0, .val = OPT_EXECUTION_PLACE},
+		{.name = "nodes",   .has_arg = 1, .val = OPT_NODES},
+		{.name = "verbose", .has_arg = 0, .val = OPT_VERBOSE},
+		{.name = "version", .has_arg = 0, .val = OPT_VERSION},
 		{.name = NULL}};
 
 	setup_child_handler();
 
 	while (1) {
-		ret = getopt_long(argc, argv, "hin:v", longopts, NULL);
+		ret = getopt_long(argc, argv, "ehn:v", longopts, NULL);
 		if (ret == -1)
 			break;
 
 		switch (ret) {
+		case 'e':
+			executionplace = 1;
+			break;
+
 		case 'h':
 			print_help();
 			exit(0);
-
-		case 'i':
-			executionplace = 1;
-			break;
 
 		case 'n':
 			l = strtol(optarg, &endptr, 10);
