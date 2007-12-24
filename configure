@@ -1,7 +1,11 @@
 #!/bin/sh
 
 prefix=/usr/local
-version="0.01"
+version="0.02"
+
+if test -z "$CC" ; then
+    CC=gcc
+fi
 
 for opt in "$@" ; do
 	case $opt in
@@ -38,7 +42,9 @@ if test ! -z "$packageprefix" ; then
     prefix="$packageprefix/$prefix"
 fi
 
-sed -e "s|{PREFIX}|$prefix|g" -e "s|{VERSION}|$version|" < Makefile.in > Makefile
+sed -e "s|{PREFIX}|$prefix|g" \
+    -e "s|{VERSION}|$version|g" \
+    -e "s|{CC}|$CC|g" < Makefile.in > Makefile
 
 echo "#define VERSION \"$version\"" > version.h
 

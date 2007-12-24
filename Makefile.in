@@ -1,4 +1,4 @@
-CC = gcc
+CC = {CC}
 CFLAGS = -Wall -O2 -g -I.
 LDFLAGS = -lm
 PREFIX = {PREFIX}
