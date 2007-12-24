@@ -41,20 +41,26 @@ static struct vplist jobfilenames;
 static const char *USAGE =
 "\n"
 "SYNTAX:\n"
-"\tjobqueue [-i] [-n x] [FILE ...]\n"
+"\tjobqueue [-i] [-n x] [-v] [--version] [FILE ...]\n"
 "\n"
 "jobqueue is a tool for executing lists of jobs on several processors or\n"
 "machines in parallel. jobqueue reads jobs (shell commands) from files. If no\n"
 "files are given, jobqueue reads jobs from stdin. Each job is executed in a\n"
 "shell environment (man 3 system).\n"
 "\n"
-"If \"-n x\" is used, jobqueue keeps at most x jobs running in parallel.\n"
-"Jobqueue issues new jobs as older jobs are finished.\n"
+" \"-n x\", jobqueue keeps at most x jobs running in parallel.\n"
+"    Jobqueue issues new jobs as older jobs are finished.\n"
 "\n"
-"If -i is given, each job is executed by passing it an execution place id.\n"
-"The execution place defines a virtual execution place for the job, which\n"
-"can be used to determine a machine to execute the job.\n"
-"The place id is an integer from 1 to x (given with -n).\n"
+" -i, each job is executed by passing an execution place id as a parameter.\n"
+"    The execution place defines a virtual execution place for the job, which\n"
+"    can be used to determine a machine to execute the job.\n"
+"    The place id is an integer from 1 to x (given with -n).\n"
+"    If command \"foo\" is executed from a job list, jobqueue executes \"foo x\",\n"
+"    where x is the execution place id.\n"
+"\n"
+" -v, enter verbose mode. Print each command that is executed.\n"
+"\n"
+" --version, print version number\n"
 "\n"
 "EXAMPLE 1: A file named MACHINES contains a list of machines to process\n"
 "jobs from a job file named JOBS. Each line in the JOBS file follows the\n"
@@ -341,10 +347,12 @@ int main(int argc, char *argv[])
 	int use_stdin;
 
 	enum jobqueueoptions {
+		OPT_HELP    = 'h',
 		OPT_VERSION = 1000,
 	};
 
 	const struct option longopts[] = {
+		{.name = "help",    .has_arg = 0, .flag = NULL, .val = OPT_HELP},
 		{.name = "version", .has_arg = 0, .flag = NULL, .val = OPT_VERSION},
 		{.name = NULL}};
 
