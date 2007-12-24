@@ -211,7 +211,9 @@ static void schedule(int nprocesses, FILE *joblist)
 				break;
 		}
 
-		if (exitmode || pindex == nprocesses) {
+		if (pindex == nprocesses ||
+		    (exitmode && jobsdone < jobsread)) {
+
 			ret = read(p[0], &pindex, sizeof pindex);
 			if (ret < 0) {
 				if (errno == EAGAIN || errno == EINTR)
@@ -225,40 +227,41 @@ static void schedule(int nprocesses, FILE *joblist)
 			if (ret != sizeof(pindex))
 				die("Unaligned read: returned %zd\n", ret);
 
+			/* Note: pindex has a new value from previous read() */
 			busy[pindex] = 0;
 
 			jobsdone++;
 
-			if (exitmode && jobsread == jobsdone) {
-				fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
-				break;
-			}
+			continue;
+		}
 
-		} else {
+		if (exitmode && jobsdone == jobsread) {
+			fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
+			break;
+		}
 
-			/* Read a new job and strip \n away from the command */
-			ret = read_stripped_line(cmd, sizeof cmd, joblist);
-			if (ret < 0) {
-				exitmode = 1;
-				continue;
-			}
+		/* Read a new job and strip \n away from the command */
+		ret = read_stripped_line(cmd, sizeof cmd, joblist);
+		if (ret < 0) {
+			exitmode = 1;
+			continue;
+		}
 
-			/* Ignore empty lines and lines beginning with '#' */
-			if (ret == 0 || cmd[0] == '#')
-				continue;
+		/* Ignore empty lines and lines beginning with '#' */
+		if (ret == 0 || cmd[0] == '#')
+			continue;
 
-			jobsread++;
-			busy[pindex] = 1;
+		jobsread++;
+		busy[pindex] = 1;
 
-			if (polling_fork() == 0) {
-				/* Close some child file descriptors */
-				close(0);
-				close(p[0]);
+		if (polling_fork() == 0) {
+			/* Close some child file descriptors */
+			close(0);
+			close(p[0]);
 
-				run(cmd, pindex, p[1]);
+			run(cmd, pindex, p[1]);
 
-				exit(0);
-			}
+			exit(0);
 		}
 	}
 }
