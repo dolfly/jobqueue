@@ -20,6 +20,7 @@
 #include "version.h"
 #include "jobqueue.h"
 #include "schedule.h"
+#include "support.h"
 
 
 /* Pass an execution place id parameter for each job if executionplace != 0 */
@@ -120,6 +121,8 @@ FILE *get_next_jobfile(void)
 
 		if (f == NULL)
 			fprintf(stderr, "jobqueue: can't open %s\n", fname);
+
+		closeonexec(fileno(f));
 
 		free(fname);
 

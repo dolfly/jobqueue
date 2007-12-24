@@ -17,6 +17,7 @@
 
 #include "jobqueue.h"
 #include "schedule.h"
+#include "support.h"
 
 
 #define MAX_CMD_SIZE 65536
@@ -115,8 +116,8 @@ void schedule(int nprocesses)
 
 	assert(nprocesses > 0);
 
-	if (pipe(p))
-		die("Can not create a pipe\n");
+	if (pipe_closeonexec(p))
+		die("Can not create a pipe: %s\n", strerror(errno));
 
 	/* All processing stations are not busy in the beginning -> calloc() */
 	busy = calloc(nprocesses, 1);
