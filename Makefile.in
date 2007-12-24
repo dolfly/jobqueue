@@ -2,7 +2,7 @@ CC = {CC}
 CFLAGS = -Wall -O2 -g -I.
 LDFLAGS = -lm
 PREFIX = {PREFIX}
-MODULES = jobqueue.o vplist.o
+MODULES = jobqueue.o schedule.o vplist.o
 
 jobqueue:	$(MODULES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(MODULES)
@@ -10,7 +10,8 @@ jobqueue:	$(MODULES)
 %.o:	%.c
 	$(CC) $(CFLAGS) -c $<
 
-jobqueue.o:	jobqueue.c vplist.h version.h
+jobqueue.o:	jobqueue.c jobqueue.h vplist.h schedule.h version.h
+schedule.o:	schedule.c schedule.h jobqueue.h vplist.h
 vplist.o:	vplist.c vplist.h
 
 install:	jobqueue
