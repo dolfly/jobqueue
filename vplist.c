@@ -43,6 +43,23 @@ void vplist_free_items(struct vplist *v)
 }
 
 
+/* Get element i from the list. Starting from the head, which is i == 0.
+ * Return 0 if the item is on the list, otherwise return 1.
+ */
+void *vplist_get(const struct vplist *v, size_t i)
+{
+	size_t j;
+
+	for (j = 0; j <= i && v != NULL; j++)
+		v = v->next;
+
+	if (v == NULL)
+		return NULL;
+
+	return v->item;
+}
+
+
 /* Init an existing list head */
 void vplist_init(struct vplist *v)
 {
@@ -50,6 +67,18 @@ void vplist_init(struct vplist *v)
 	v->item = NULL;
 }
 
+/* Return the number of elements in list */
+size_t vplist_len(const struct vplist *v)
+{
+	size_t l = 0;
+
+	while (v->next != NULL) {
+		v = v->next;
+		l++;
+	}
+
+	return l;
+}
 
 /* Pop head of the list. O(1) operation. */
 void *vplist_pop_head(struct vplist *v)

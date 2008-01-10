@@ -26,6 +26,9 @@
 /* Pass an execution place id parameter for each job if
  * passexecutionplace != 0 */
 int passexecutionplace;
+
+struct vplist machinelist;
+
 int verbosemode;
 
 static struct vplist jobfilenames;
@@ -33,7 +36,7 @@ static struct vplist jobfilenames;
 static const char *USAGE =
 "\n"
 "SYNTAX:\n"
-"\tjobqueue [-e] [-n x] [-v] [--version] [FILE ...]\n"
+"\tjobqueue [-e] [-n x] [-m list] [-v] [--version] [FILE ...]\n"
 "\n"
 "jobqueue is a tool for executing lists of jobs on several processors or\n"
 "machines in parallel. jobqueue reads jobs (shell commands) from files. If no\n"
@@ -49,6 +52,13 @@ static const char *USAGE =
 "    The place id is an integer from 1 to x (given with -n).\n"
 "    If command \"foo\" is executed from a job list, jobqueue executes \"foo x\",\n"
 "    where x is the execution place id.\n"
+"\n"
+" -m list / --machine-list list, read contents of list file, and count each\n"
+"    non-empty and non-comment line to be an execution place. Pass execution\n"
+"    place for each executed job as a parameter. The difference to -e is that\n"
+"    -e passes the execution place as an integer, but this option passes the\n"
+"    execution place as a name for the job. Also, this option implies \"-n x\",\n"
+"    where x is the number of names read from the file.\n"
 "\n"
 " -v / --verbose, enter verbose mode. Print each command that is executed.\n"
 "\n"
@@ -73,18 +83,16 @@ static const char *USAGE =
 "\n"
 "# This is the dataX parameter from JOBS file\n"
 "data=\"$1\"\n"
-"# This is the execution place passed from the jobqueue: in range 0-3\n"
-"machinenumber=$2\n"
 "\n"
 "# determine the machine that will execute this job\n"
-"machine=$(head -n $machinenumber MACHINES |tail -n1)\n"
+"machine=$2\n"
 "\n"
 "echo $machine $data\n"
 "ssh $machine remotecommand $data\n"
 "\n"
 "To execute jobs on the machines, issue:\n"
 "\n"
-"jobqueue -n 4 -e JOBS\n"
+"jobqueue -m MACHINES JOBS\n"
 "\n"
 "Execution will print something like this:\n"
 "machine0 data0\n"
@@ -140,6 +148,43 @@ static void print_help(void)
 }
 
 
+static int read_machine_list(const char *fname)
+{
+	FILE *f;
+	char name[256];
+	size_t nmachines = 0;
+	char *nameptr;
+	ssize_t len;
+
+	if (machinelist.next != NULL)
+		die("You may not specify machine list twice\n");
+
+	f = fopen(fname, "r");
+
+	while (1) {
+		len = read_stripped_line(name, sizeof name, f);
+		if (len < 0)
+			break;
+
+		if (!useful_line(name))
+			continue;
+
+		nameptr = strdup(name);
+		if (nameptr == NULL)
+			die("Not enough memory for machine list\n");
+
+		if (vplist_append(&machinelist, nameptr))
+			die("Not enough memory for machine list\n");
+
+		nmachines++;
+	}
+
+	fclose(f);
+
+	return nmachines;
+}
+
+
 static void trivial_sigchld(int signum)
 {
 	while (waitpid(-1, NULL, WNOHANG) > 0);
@@ -160,7 +205,8 @@ static void setup_child_handler(void)
 int main(int argc, char *argv[])
 {
 	int ret;
-	int n = 1;
+	int nplaces = 1;
+	int nplacespassed = 0;
 	int l;
 	char *endptr;
 	char *jobfilename;
@@ -170,6 +216,7 @@ int main(int argc, char *argv[])
 	enum jobqueueoptions {
 		OPT_EXECUTION_PLACE = 'e',
 		OPT_HELP            = 'h',
+		OPT_MACHINE_LIST    = 'm',
 		OPT_NODES           = 'n',
 		OPT_VERBOSE         = 'v',
 		OPT_VERSION         = 1000,
@@ -178,6 +225,7 @@ int main(int argc, char *argv[])
 	const struct option longopts[] = {
 		{.name = "help",    .has_arg = 0, .val = OPT_HELP},
 		{.name = "execution-place", .has_arg = 0, .val = OPT_EXECUTION_PLACE},
+		{.name = "machine-list", .has_arg = 1, .val = OPT_MACHINE_LIST},
 		{.name = "nodes",   .has_arg = 1, .val = OPT_NODES},
 		{.name = "verbose", .has_arg = 0, .val = OPT_VERBOSE},
 		{.name = "version", .has_arg = 0, .val = OPT_VERSION},
@@ -185,8 +233,11 @@ int main(int argc, char *argv[])
 
 	setup_child_handler();
 
+	vplist_init(&machinelist);
+	vplist_init(&jobfilenames);
+	
 	while (1) {
-		ret = getopt_long(argc, argv, "ehn:v", longopts, NULL);
+		ret = getopt_long(argc, argv, "ehm:n:v", longopts, NULL);
 		if (ret == -1)
 			break;
 
@@ -199,13 +250,19 @@ int main(int argc, char *argv[])
 			print_help();
 			exit(0);
 
+		case 'm':
+			nplaces = read_machine_list(optarg);
+			break;
+
 		case 'n':
 			l = strtol(optarg, &endptr, 10);
 
 			if ((l <= 0 || l >= INT_MAX) || *endptr != 0)
 				die("Invalid parameter: %s\n", optarg);
 
-			n = l;
+			nplaces = l;
+
+			nplacespassed = 1;
 			break;
 
 		case 'v':
@@ -221,8 +278,10 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	vplist_init(&jobfilenames);
-	
+	if ((passexecutionplace && machinelist.next != NULL) ||
+	    (nplacespassed && machinelist.next != NULL))
+		die("Error: -m MACHINELIST may not be used with -e and -n\n");
+
 	use_stdin = (optind == argc);
 	i = optind;
 
@@ -248,7 +307,7 @@ int main(int argc, char *argv[])
 			break;
 	}
 
-	schedule(n);
+	schedule(nplaces);
 
 	return 0;
 }

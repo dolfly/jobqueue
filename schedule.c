@@ -113,8 +113,15 @@ static void run(const char *cmd, int ps, size_t jobnumber, int fd)
 	char run_cmd[MAX_CMD_SIZE];
 	struct job_ack joback = {.place = ps,
 	                         .result = JOB_FAILURE};
+	char *machine;
 
-	if (passexecutionplace) {
+	if (machinelist.next != NULL) {
+
+		machine = vplist_get(&machinelist, ps);
+		assert(machine != NULL);
+
+		ret = snprintf(run_cmd, sizeof run_cmd, "%s %s", cmd, machine);
+	} else if (passexecutionplace) {
 		ret = snprintf(run_cmd, sizeof run_cmd, "%s %d", cmd, ps + 1);
 	} else {
 		ret = snprintf(run_cmd, sizeof run_cmd, "%s", cmd);
@@ -137,31 +144,6 @@ static void run(const char *cmd, int ps, size_t jobnumber, int fd)
 	joback.result = JOB_SUCCESS;
 
 	write_job_ack(fd, joback, run_cmd);
-}
-
-
-/* Read a line from file 'f' to buffer 'buf' with size 'buflen', and
- * strip \n away
- */
-static ssize_t read_stripped_line(char *buf, size_t buflen, FILE *f)
-{
-	size_t len;
-
-	while (fgets(buf, buflen, f) == NULL) {
-		/* fgets() may be unable to restart after SIGCHLD:
-		   it can return NULL, and feof() needs to be tested */
-		if (feof(f))
-			return -1;
-	}
-
-	len = strlen(buf);
-
-	if (buf[len - 1] == '\n') {
-		len--;
-		buf[len] = 0;
-	}
-
-	return len;
 }
 
 
@@ -223,8 +205,7 @@ void schedule(int nplaces)
 			continue;
 		}
 
-		/* Ignore empty lines and lines beginning with '#' */
-		if (ret == 0 || cmd[0] == '#')
+		if (!useful_line(cmd))
 			continue;
 
 		places[pindex].busy = 1;

@@ -4,12 +4,8 @@
 #include <stdio.h>
 #include "vplist.h"
 
-#define die(fmt, args...) do { \
-    fprintf(stderr, fmt, ## args); \
-    exit(1); \
-  } while (0)
-
 extern int passexecutionplace;
+extern struct vplist machinelist;
 extern int verbosemode;
 
 FILE *get_next_jobfile(void);
