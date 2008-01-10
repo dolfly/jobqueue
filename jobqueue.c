@@ -23,8 +23,9 @@
 #include "support.h"
 
 
-/* Pass an execution place id parameter for each job if executionplace != 0 */
-int executionplace;
+/* Pass an execution place id parameter for each job if
+ * passexecutionplace != 0 */
+int passexecutionplace;
 int verbosemode;
 
 static struct vplist jobfilenames;
@@ -191,7 +192,7 @@ int main(int argc, char *argv[])
 
 		switch (ret) {
 		case 'e':
-			executionplace = 1;
+			passexecutionplace = 1;
 			break;
 
 		case 'h':

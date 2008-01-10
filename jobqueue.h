@@ -9,7 +9,7 @@
     exit(1); \
   } while (0)
 
-extern int executionplace;
+extern int passexecutionplace;
 extern int verbosemode;
 
 FILE *get_next_jobfile(void);

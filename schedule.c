@@ -114,7 +114,7 @@ static void run(const char *cmd, int ps, size_t jobnumber, int fd)
 	struct job_ack joback = {.place = ps,
 	                         .result = JOB_FAILURE};
 
-	if (executionplace) {
+	if (passexecutionplace) {
 		ret = snprintf(run_cmd, sizeof run_cmd, "%s %d", cmd, ps + 1);
 	} else {
 		ret = snprintf(run_cmd, sizeof run_cmd, "%s", cmd);
