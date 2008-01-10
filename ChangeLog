@@ -1,3 +1,15 @@
+# The full change log is available in the Git repository:
+#
+# git clone git://zakalwe.fi/jobqueue
+
+2008-01-11  Heikki Orsila <heikki.orsila@iki.fi>
+	* version 0.02
+	- Optimized job processing from multiple files
+	- Made remote machine parallelization easier
+	- Cleaned code
+	- Fixed bugs
+	- Improved documentation.
+
 2007-12-24  Heikki Orsila <heikki.orsila@iki.fi>
 	* version 0.01
 	- Initial release
