@@ -35,7 +35,7 @@ struct job_ack {
 
 struct executionplace {
 	size_t jobnumber;
-	int busy;
+	int jobsrunning;
 };
 
 
@@ -80,7 +80,9 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 
 	place = &places[joback.place];
 
-	place->busy = 0;
+	assert(place->jobsrunning > 0);
+
+	place->jobsrunning--;
 
 	if (verbosemode)
 		fprintf(stderr, "Job %zd finished %s\n", place->jobnumber,
@@ -176,7 +178,7 @@ void schedule(int nplaces)
 	while (1) {
 		/* Find a free execution place */
 		for (pindex = 0; pindex < nplaces; pindex++) {
-			if (!places[pindex].busy)
+			if (places[pindex].jobsrunning < multiissue)
 				break;
 		}
 
@@ -208,7 +210,7 @@ void schedule(int nplaces)
 		if (!useful_line(cmd))
 			continue;
 
-		places[pindex].busy = 1;
+		places[pindex].jobsrunning++;
 		places[pindex].jobnumber = jobsread;
 
 		jobsread++;

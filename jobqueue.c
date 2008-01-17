@@ -29,6 +29,8 @@ int passexecutionplace;
 
 struct vplist machinelist;
 
+int multiissue = 1;
+
 int verbosemode;
 
 static struct vplist jobfilenames;
@@ -36,7 +38,7 @@ static struct vplist jobfilenames;
 static const char *USAGE =
 "\n"
 "SYNTAX:\n"
-"\tjobqueue [-e] [-n x] [-m list] [-v] [--version] [FILE ...]\n"
+"\tjobqueue [-e] [-n x] [-m list] [-v] [--version] [-x n] [FILE ...]\n"
 "\n"
 "jobqueue is a tool for executing lists of jobs on several processors or\n"
 "machines in parallel. jobqueue reads jobs (shell commands) from files. If no\n"
@@ -63,6 +65,10 @@ static const char *USAGE =
 " -v / --verbose, enter verbose mode. Print each command that is executed.\n"
 "\n"
 " --version, print version number\n"
+"\n"
+" -x n / --multi-issue=n, set number of simultaneous jobs for each execution\n"
+"    execution place. For example: -m machinelist -x 2 keeps two simultaneous\n"
+"    jobs running on each machine.\n"
 "\n"
 "EXAMPLE 1: A file named MACHINES contains a list of machines to process\n"
 "jobs from a job file named JOBS. Each line in the JOBS file follows the\n"
@@ -218,6 +224,7 @@ int main(int argc, char *argv[])
 		OPT_HELP            = 'h',
 		OPT_MACHINE_LIST    = 'm',
 		OPT_NODES           = 'n',
+		OPT_MULTIISSUE      = 'x',
 		OPT_VERBOSE         = 'v',
 		OPT_VERSION         = 1000,
 	};
@@ -226,6 +233,7 @@ int main(int argc, char *argv[])
 		{.name = "help",    .has_arg = 0, .val = OPT_HELP},
 		{.name = "execution-place", .has_arg = 0, .val = OPT_EXECUTION_PLACE},
 		{.name = "machine-list", .has_arg = 1, .val = OPT_MACHINE_LIST},
+		{.name = "multi-issue",  .has_arg = 1, .val = OPT_MULTIISSUE},
 		{.name = "nodes",   .has_arg = 1, .val = OPT_NODES},
 		{.name = "verbose", .has_arg = 0, .val = OPT_VERBOSE},
 		{.name = "version", .has_arg = 0, .val = OPT_VERSION},
@@ -237,7 +245,7 @@ int main(int argc, char *argv[])
 	vplist_init(&jobfilenames);
 	
 	while (1) {
-		ret = getopt_long(argc, argv, "ehm:n:v", longopts, NULL);
+		ret = getopt_long(argc, argv, "ehm:n:vx:", longopts, NULL);
 		if (ret == -1)
 			break;
 
@@ -267,6 +275,15 @@ int main(int argc, char *argv[])
 
 		case 'v':
 			verbosemode = 1;
+			break;
+
+		case 'x':
+			l = strtol(optarg, &endptr, 10);
+
+			if ((l <= 0 || l >= INT_MAX) || *endptr != 0)
+				die("Invalid parameter: -x %s\n", optarg);
+
+			multiissue = l;
 			break;
 
 		case OPT_VERSION:

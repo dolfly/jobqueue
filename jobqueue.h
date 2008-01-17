@@ -6,6 +6,7 @@
 
 extern int passexecutionplace;
 extern struct vplist machinelist;
+extern int multiissue;
 extern int verbosemode;
 
 FILE *get_next_jobfile(void);
