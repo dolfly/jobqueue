@@ -67,6 +67,12 @@ void vplist_init(struct vplist *v)
 	v->item = NULL;
 }
 
+/* Returns 1 if the list is empty, otherwise 0 */
+int vplist_is_empty(const struct vplist *v)
+{
+	return v->next == NULL;
+}
+
 /* Return the number of elements in list */
 size_t vplist_len(const struct vplist *v)
 {
