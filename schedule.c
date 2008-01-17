@@ -51,24 +51,6 @@ static struct vplist failedjobs = VPLIST_INITIALIZER;
 static struct vplist runningjobs = VPLIST_INITIALIZER;
 
 
-static pid_t polling_fork(void)
-{
-	pid_t child;
-
-	while (1) {
-		child = fork();
-		
-		if (child >= 0)
-			break;
-
-		/* Can not fork(): sleep a bit and try again */
-		sleep(1);
-	}
-
-	return child;
-}
-
-
 static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 {
 	struct job_ack joback;
@@ -270,6 +252,7 @@ void schedule(int nplaces)
 	FILE *jobfile;
 	struct job *job;
 	int allbroken;
+	pid_t child;
 
 	jobfile = get_next_jobfile();
 	if (jobfile == NULL)
@@ -321,7 +304,8 @@ void schedule(int nplaces)
 
 		places[pindex].jobsrunning++;
 
-		if (polling_fork() == 0) {
+		child = fork();
+		if (child == 0) {
 			/* Close some child file descriptors */
 			close(0);
 			close(p[0]);
@@ -329,6 +313,8 @@ void schedule(int nplaces)
 			run(job, pindex, p[1]);
 
 			exit(0);
+		} else if (child < 0) {
+			die("Can not fork()\n");
 		}
 	}
 
