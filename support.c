@@ -29,7 +29,7 @@ int pipe_closeonexec(int p[2])
 
 
 /* Read a line from file 'f' to buffer 'buf' with size 'buflen', and
- * strip \n away
+ * strip \n away. Returns line length.
  */
 ssize_t read_stripped_line(char *buf, size_t buflen, FILE *f)
 {
