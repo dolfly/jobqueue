@@ -25,18 +25,30 @@
 
 enum job_result {
 	JOB_SUCCESS,
-	JOB_FAILURE
+	JOB_FAILURE,
+	JOB_BROKEN_EXECUTION_PLACE
+};
+
+struct job {
+	size_t jobnumber;
+	char *cmd;
 };
 
 struct job_ack {
+	size_t jobnumber;
 	int place;
 	enum job_result result;
 };
 
 struct executionplace {
-	size_t jobnumber;
 	int jobsrunning;
+	int broken;
 };
+
+
+static struct vplist failedjobs = VPLIST_INITIALIZER;
+
+static struct vplist runningjobs = VPLIST_INITIALIZER;
 
 
 static pid_t polling_fork(void)
@@ -62,6 +74,10 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 	struct job_ack joback;
 	ssize_t ret;
 	struct executionplace *place;
+	struct vplist *listitem;
+	struct job *job;
+	int found;
+	char *machine;
 
 	ret = read(fd, &joback, sizeof joback);
 	if (ret < 0) {
@@ -82,10 +98,47 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 
 	assert(place->jobsrunning > 0);
 
-	place->jobsrunning--;
+	if (!place->broken) {
+		place->jobsrunning--;
+	} else {
+
+		if (machinelist.next != NULL) {
+			machine = vplist_get(&machinelist, joback.place);
+			assert(machine != NULL);
+			fprintf(stderr, "Execution place %s ", machine);
+		} else {
+			fprintf(stderr, "Execution place %d ", joback.place);
+		}
+
+		fprintf(stderr, "is broken.\n"
+			"Not issuing new jobs for that place.\n");
+
+		/* The execution place is broken, prevent new jobs to it */
+		place->jobsrunning = multiissue;
+	}
+
+	if (requeuefailedjobs && joback.result != JOB_SUCCESS) {
+		found = 0;
+		job = NULL;
+
+		VPLIST_FOR_EACH(listitem, &runningjobs) {
+			job = listitem->item;
+			if (job->jobnumber == joback.jobnumber) {
+				found = 1;
+				break;
+			}
+		}
+
+		assert(0); /* must remove job from runningjobs */
+
+		assert(found);
+
+		if (vplist_append(&failedjobs, job))
+			die("Out of memory: can not requeue failed job\n");
+	}
 
 	if (verbosemode)
-		fprintf(stderr, "Job %zd finished %s\n", place->jobnumber,
+		fprintf(stderr, "Job %zd finished %s\n", joback.jobnumber,
 			joback.result == JOB_SUCCESS ?
 			"successfully" : "unsuccessfully");
 
@@ -109,11 +162,60 @@ static void write_job_ack(int fd, struct job_ack joback, const char *cmd)
 }
 
 
-static void run(const char *cmd, int ps, size_t jobnumber, int fd)
+static struct job *read_job(FILE **jobfile, size_t jobnumber)
 {
 	ssize_t ret;
-	char run_cmd[MAX_CMD_SIZE];
-	struct job_ack joback = {.place = ps,
+	struct job *job;
+	char cmd[MAX_CMD_SIZE];
+
+	job = vplist_pop_head(&failedjobs);
+	if (job != NULL) {
+		if (vplist_append(&runningjobs, job))
+			die("Out of memory: can not re-add job\n");
+
+		return job;
+	}
+
+	while (1) {
+		/* Read a new job and strip \n away from the command */
+		ret = read_stripped_line(cmd, sizeof cmd, *jobfile);
+		if (ret < 0) {
+			fclose(*jobfile);
+
+			*jobfile = get_next_jobfile();
+
+			if (*jobfile == NULL)
+				return NULL;
+
+			continue;
+		}
+
+		if (useful_line(cmd))
+			break;
+	}
+
+	job = malloc(sizeof job[0]);
+	if (job == NULL)
+		die("Can not allocate memory for job: %s\n", cmd);
+
+	*job = (struct job) {.jobnumber = jobnumber,
+			     .cmd = strdup(cmd)};
+
+	if (job->cmd == NULL)
+		die("Can not allocate memory for cmd: %s\n", cmd);
+
+	vplist_append(&runningjobs, job);
+
+	return job;
+}
+
+
+static void run(const struct job *job, int ps, int fd)
+{
+	ssize_t ret;
+	char cmd[MAX_CMD_SIZE];
+	struct job_ack joback = {.jobnumber = job->jobnumber,
+				 .place = ps,
 	                         .result = JOB_FAILURE};
 	char *machine;
 
@@ -122,44 +224,48 @@ static void run(const char *cmd, int ps, size_t jobnumber, int fd)
 		machine = vplist_get(&machinelist, ps);
 		assert(machine != NULL);
 
-		ret = snprintf(run_cmd, sizeof run_cmd, "%s %s", cmd, machine);
+		ret = snprintf(cmd, sizeof cmd, "%s %s", job->cmd, machine);
 	} else if (passexecutionplace) {
-		ret = snprintf(run_cmd, sizeof run_cmd, "%s %d", cmd, ps + 1);
+		ret = snprintf(cmd, sizeof cmd, "%s %d", job->cmd, ps + 1);
 	} else {
-		ret = snprintf(run_cmd, sizeof run_cmd, "%s", cmd);
+		ret = snprintf(cmd, sizeof cmd, "%s", job->cmd);
 	}
 
-	if (ret >= sizeof(run_cmd)) {
-		write_job_ack(fd, joback, run_cmd);
-		die("Too long a command: %s\n", cmd); /* cmd, not run_cmd */
+	if (ret >= sizeof(cmd)) {
+		write_job_ack(fd, joback, cmd);
+		die("Too long a command: %s\n", job->cmd);
 	}
 
 	if (verbosemode)
-		fprintf(stderr, "Job %zd execute: %s\n", jobnumber, run_cmd);
+		fprintf(stderr, "Job %zd execute: %s\n", job->jobnumber, cmd);
 
-	ret = system(run_cmd);
+	ret = system(cmd);
 	if (ret == -1) {
-		write_job_ack(fd, joback, run_cmd);
-		die("job delivery failed: %s\n", run_cmd);
+
+		if (WEXITSTATUS(ret) == 2)
+			joback.result = JOB_BROKEN_EXECUTION_PLACE;
+
+		write_job_ack(fd, joback, cmd);
+		die("job delivery failed: %s\n", cmd);
 	}
 
 	joback.result = JOB_SUCCESS;
 
-	write_job_ack(fd, joback, run_cmd);
+	write_job_ack(fd, joback, cmd);
 }
 
 
 void schedule(int nplaces)
 {
-	char cmd[MAX_CMD_SIZE];
 	struct executionplace *places;
 	int pindex;
 	int p[2];
-	ssize_t ret;
 	size_t jobsread = 0;
 	size_t jobsdone = 0;
 	int exitmode = 0;
 	FILE *jobfile;
+	struct job *job;
+	int allbroken;
 
 	jobfile = get_next_jobfile();
 	if (jobfile == NULL)
@@ -177,10 +283,18 @@ void schedule(int nplaces)
 
 	while (1) {
 		/* Find a free execution place */
+		allbroken = 1;
+
 		for (pindex = 0; pindex < nplaces; pindex++) {
+			if (!places[pindex].broken)
+				allbroken = 0;
+
 			if (places[pindex].jobsrunning < multiissue)
 				break;
 		}
+
+		if (allbroken)
+			die("SYSTEM FAILURE. All execution places dead.\n");
 
 		if (pindex == nplaces || (exitmode && jobsdone < jobsread)) {
 
@@ -193,34 +307,22 @@ void schedule(int nplaces)
 		if (exitmode && jobsdone == jobsread)
 			break;
 
-		/* Read a new job and strip \n away from the command */
-		ret = read_stripped_line(cmd, sizeof cmd, jobfile);
-		if (ret < 0) {
-
-			fclose(jobfile);
-
-			jobfile = get_next_jobfile();
-
-			if (jobfile == NULL)
-				exitmode = 1; /* No more jobfiles -> exit */
-
+		job = read_job(&jobfile, jobsread);
+		if (job == NULL) {
+			exitmode = 1; /* No more jobfiles -> exit */
 			continue;
 		}
 
-		if (!useful_line(cmd))
-			continue;
+		jobsread++;
 
 		places[pindex].jobsrunning++;
-		places[pindex].jobnumber = jobsread;
-
-		jobsread++;
 
 		if (polling_fork() == 0) {
 			/* Close some child file descriptors */
 			close(0);
 			close(p[0]);
 
-			run(cmd, pindex, places[pindex].jobnumber, p[1]);
+			run(job, pindex, p[1]);
 
 			exit(0);
 		}

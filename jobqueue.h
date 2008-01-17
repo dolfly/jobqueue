@@ -4,9 +4,10 @@
 #include <stdio.h>
 #include "vplist.h"
 
-extern int passexecutionplace;
 extern struct vplist machinelist;
 extern int multiissue;
+extern int requeuefailedjobs;
+extern int passexecutionplace;
 extern int verbosemode;
 
 FILE *get_next_jobfile(void);

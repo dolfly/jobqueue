@@ -23,17 +23,19 @@
 #include "support.h"
 
 
+struct vplist machinelist = VPLIST_INITIALIZER;
+
+int multiissue = 1;
+
 /* Pass an execution place id parameter for each job if
  * passexecutionplace != 0 */
 int passexecutionplace;
 
-struct vplist machinelist;
-
-int multiissue = 1;
+int requeuefailedjobs;
 
 int verbosemode;
 
-static struct vplist jobfilenames;
+static struct vplist jobfilenames = VPLIST_INITIALIZER;
 
 static const char *USAGE =
 "\n"
@@ -224,6 +226,7 @@ int main(int argc, char *argv[])
 		OPT_HELP            = 'h',
 		OPT_MACHINE_LIST    = 'm',
 		OPT_NODES           = 'n',
+		OPT_REQUEUE_FAILED  = 'r',
 		OPT_MULTIISSUE      = 'x',
 		OPT_VERBOSE         = 'v',
 		OPT_VERSION         = 1000,
@@ -234,18 +237,16 @@ int main(int argc, char *argv[])
 		{.name = "execution-place", .has_arg = 0, .val = OPT_EXECUTION_PLACE},
 		{.name = "machine-list", .has_arg = 1, .val = OPT_MACHINE_LIST},
 		{.name = "multi-issue",  .has_arg = 1, .val = OPT_MULTIISSUE},
-		{.name = "nodes",   .has_arg = 1, .val = OPT_NODES},
+		{.name = "nodes",        .has_arg = 1, .val = OPT_NODES},
+		{.name = "requeue-failed", .has_arg = 0, .val = OPT_REQUEUE_FAILED},
 		{.name = "verbose", .has_arg = 0, .val = OPT_VERBOSE},
 		{.name = "version", .has_arg = 0, .val = OPT_VERSION},
 		{.name = NULL}};
 
 	setup_child_handler();
-
-	vplist_init(&machinelist);
-	vplist_init(&jobfilenames);
 	
 	while (1) {
-		ret = getopt_long(argc, argv, "ehm:n:vx:", longopts, NULL);
+		ret = getopt_long(argc, argv, "ehm:n:rvx:", longopts, NULL);
 		if (ret == -1)
 			break;
 
@@ -271,6 +272,10 @@ int main(int argc, char *argv[])
 			nplaces = l;
 
 			nplacespassed = 1;
+			break;
+
+		case 'r':
+			requeuefailedjobs = 1;
 			break;
 
 		case 'v':
