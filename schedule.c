@@ -96,11 +96,11 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 
 	place = &places[joback.place];
 
-	assert(place->jobsrunning > 0);
+	if (joback.result == JOB_BROKEN_EXECUTION_PLACE) {
+		place->broken = 1;
 
-	if (!place->broken) {
-		place->jobsrunning--;
-	} else {
+		/* The execution place is broken, prevent new jobs to it */
+		place->jobsrunning = multiissue;
 
 		if (machinelist.next != NULL) {
 			machine = vplist_get(&machinelist, joback.place);
@@ -112,10 +112,14 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 
 		fprintf(stderr, "is broken.\n"
 			"Not issuing new jobs for that place.\n");
-
-		/* The execution place is broken, prevent new jobs to it */
-		place->jobsrunning = multiissue;
 	}
+
+	assert(place->jobsrunning > 0);
+
+	if (place->broken)
+		place->jobsrunning = multiissue;
+	else
+		place->jobsrunning--;
 
 	if (requeuefailedjobs && joback.result != JOB_SUCCESS) {
 		found = 0;
