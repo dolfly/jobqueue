@@ -1,18 +1,26 @@
 #!/bin/sh
 
-com=../jobqueue
+com="../jobqueue"
+
+if test "$1" = "--valgrind" ; then
+    com="valgrind --error-exitcode=1 ../jobqueue"
+fi
 
 n=500
 m=10
-
 echo "Running $n jobs in $m processing stations"
-
-yes true |head -n $n |$com -n $m
+yes true |head -n $n |$com -n $m 2>/dev/null
+if test "$?" != "0" ; then
+    echo "First test failed"
+fi
 
 function deadlocktest() {
     echo "Running deadlock test with" "$@"
     for i in $(seq 25) ; do
-	yes ./randomfailure.py |head -n1 |$com -n2 "$@"
+	yes ./randomfailure.py |head -n1 |$com -n2 "$@" 2>/dev/null
+	if test "$?" != "0" ; then
+	    echo "Deadlock test with "$@" failed"
+	fi
     done
 }
 
