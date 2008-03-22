@@ -26,5 +26,6 @@ int vplist_is_empty(const struct vplist *v); /* faster than vplist_len() */
 size_t vplist_len(const struct vplist *v);
 void *vplist_pop_head(struct vplist *v);
 void *vplist_pop_tail(struct vplist *v);
+int vplist_remove_item(struct vplist *v, void *item);
 
 #endif

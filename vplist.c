@@ -4,7 +4,7 @@
 #include "vplist.h"
 
 
-/* Make a new tail. O(n) operation. */
+/* Make a new tail. O(n) operation. Returns 0 on success, -1 on failure. */
 int vplist_append(struct vplist *v, void *item)
 {
 	assert(item != NULL);
@@ -120,4 +120,23 @@ void *vplist_pop_tail(struct vplist *v)
 		v = v->next;
 
 	return vplist_pop_head(v);
+}
+
+/* Remove node that matches item in the list. Returns 0 on success, -1 on
+ * failure. */
+int vplist_remove_item(struct vplist *v, void *item)
+{
+	void *removeditem;
+
+	/* Find the node that precedes the node that is being searched for */
+	while (v->next != NULL && v->next->item != item)
+		v = v->next;
+
+	if (v->next == NULL)
+		return -1;
+
+	removeditem = vplist_pop_head(v);
+	assert(removeditem == item);
+
+	return 0;
 }
