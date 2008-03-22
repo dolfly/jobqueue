@@ -25,7 +25,7 @@
 
 struct vplist machinelist = VPLIST_INITIALIZER;
 
-int multiissue = 1;
+int maxissue = 1;
 
 /* Pass an execution place id parameter for each job if
  * passexecutionplace != 0 */
@@ -74,7 +74,7 @@ static const char *USAGE =
 "\n"
 " --version, print version number\n"
 "\n"
-" -x n / --multi-issue=n, set number of simultaneous jobs for each execution\n"
+" -x n / --max-issue=n, set number of simultaneous jobs for each execution\n"
 "    execution place. For example: -m machinelist -x 2 keeps two simultaneous\n"
 "    jobs running on each machine.\n"
 "\n"
@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 		OPT_MACHINE_LIST    = 'm',
 		OPT_NODES           = 'n',
 		OPT_RESTART_FAILED  = 'r',
-		OPT_MULTIISSUE      = 'x',
+		OPT_MAXISSUE      = 'x',
 		OPT_VERBOSE         = 'v',
 		OPT_VERSION         = 1000,
 	};
@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
 		{.name = "help",    .has_arg = 0, .val = OPT_HELP},
 		{.name = "execution-place", .has_arg = 0, .val = OPT_EXECUTION_PLACE},
 		{.name = "machine-list", .has_arg = 1, .val = OPT_MACHINE_LIST},
-		{.name = "multi-issue",  .has_arg = 1, .val = OPT_MULTIISSUE},
+		{.name = "max-issue",  .has_arg = 1, .val = OPT_MAXISSUE},
 		{.name = "nodes",        .has_arg = 1, .val = OPT_NODES},
 		{.name = "restart-failed", .has_arg = 0, .val = OPT_RESTART_FAILED},
 		{.name = "verbose", .has_arg = 0, .val = OPT_VERBOSE},
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
 			if ((l <= 0 || l >= INT_MAX) || *endptr != 0)
 				die("Invalid parameter: -x %s\n", optarg);
 
-			multiissue = l;
+			maxissue = l;
 			break;
 
 		case OPT_VERSION:

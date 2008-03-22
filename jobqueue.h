@@ -5,7 +5,7 @@
 #include "vplist.h"
 
 extern struct vplist machinelist;
-extern int multiissue;
+extern int maxissue;
 extern int requeuefailedjobs;
 extern int passexecutionplace;
 extern int verbosemode;

@@ -99,7 +99,7 @@ static void read_job_ack(size_t *jobsdone, int fd,
 	assert(place->jobsrunning > 0);
 
 	if (place->broken)
-		place->jobsrunning = multiissue;
+		place->jobsrunning = maxissue;
 	else
 		place->jobsrunning--;
 
@@ -300,7 +300,7 @@ void schedule(int nplaces)
 			if (!places[pindex].broken)
 				allbroken = 0;
 
-			if (places[pindex].jobsrunning < multiissue)
+			if (places[pindex].jobsrunning < maxissue)
 				break;
 		}
 
@@ -313,7 +313,7 @@ void schedule(int nplaces)
 
 		somethingtowait = (jobsdone < jobsread);
 
-		/* Possible cases for event finish state machine.
+		/* Finite state machine for job handling
 		 *
 		 * PI = "possibletoissue", SI = "somethingtoissue"
 		 * SW = "somethingtowait"
