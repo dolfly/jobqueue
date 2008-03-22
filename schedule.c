@@ -136,15 +136,16 @@ static void read_job_ack(size_t *jobsdone, int fd,
 		jobdone = 1;
 	}
 
-	if (jobdone) {
-		free_job(joback.job);
-		(*jobsdone)++;
-	}
-
 	if (VERBOSE)
 		fprintf(stderr, "Job %zd finished %s\n", joback.job->jobnumber,
 			joback.result == JOB_SUCCESS ?
 			"successfully" : "unsuccessfully");
+
+	if (jobdone) {
+		free_job(joback.job);
+		joback.job = NULL;
+		(*jobsdone)++;
+	}
 }
 
 
