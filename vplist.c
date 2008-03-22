@@ -43,8 +43,8 @@ void vplist_free_items(struct vplist *v)
 }
 
 
-/* Get element i from the list. Starting from the head, which is i == 0.
- * Return 0 if the item is on the list, otherwise return 1.
+/* Return element i from the list (i == 0 is the head). Return NULL if
+ * i is too high (i >= vplist_len()).
  */
 void *vplist_get(const struct vplist *v, size_t i)
 {
