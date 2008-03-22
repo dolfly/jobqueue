@@ -3,6 +3,36 @@
 prefix=/usr/local
 version="0.02"
 
+function devstdinexistence() {
+    if test ! -e "/dev/stdin" ; then
+	echo "Error: the operating system must support /dev/stdin file"
+	exit 1
+    fi
+}
+
+function pythonexistence() {
+    python -V >/dev/null 2>/dev/null
+    if test "$?" = "0" ; then
+	echo "yes"
+    else
+	echo "no"
+    fi
+}
+
+function stdintreplacement() {
+    rm -f stdint.h
+    cat > stdinttest.c <<EOF
+#include <stdint.h>
+int main(void) {uint8_t a = 0; uint32_t b = 0; return 0; }
+EOF
+    gcc -o stdinttest stdinttest.c 2>/dev/null
+    if test "$?" != "0" ; then
+	echo "#include <inttypes.h>" > stdint.h
+	echo "Warning: stdint.h is missing (needed for portable types)"
+	echo ""
+    fi
+}
+
 if test -z "$CC" ; then
     CC=gcc
 fi
@@ -26,16 +56,15 @@ for opt in "$@" ; do
 	esac
 done
 
-rm -f stdint.h
-cat > stdinttest.c <<EOF
-#include <stdint.h>
-int main(void) {uint8_t a = 0; uint32_t b = 0; return 0; }
-EOF
-gcc -o stdinttest stdinttest.c 2>/dev/null
-if test "$?" != "0" ; then
-    echo "#include <inttypes.h>" > stdint.h
-    echo "Warning: stdint.h is missing (needed for portable types)"
-    echo ""
+devstdinexistence
+
+stdintreplacement
+
+havepython=$(pythonexistence)
+if test "$havepython" = "no"; then
+    echo
+    echo "NOTICE: developers need a Python interpreter for self-testing (make check)"
+    echo
 fi
 
 if test ! -z "$packageprefix" ; then
@@ -48,6 +77,7 @@ sed -e "s|{PREFIX}|$prefix|g" \
 
 echo "#define VERSION \"$version\"" > version.h
 
+echo
 echo "Would install binary to directory $prefix/bin."
-echo ""
+echo
 echo "Configure succesful."
