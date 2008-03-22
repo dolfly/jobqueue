@@ -19,7 +19,7 @@ install:	jobqueue
 	install jobqueue "$(PREFIX)/bin/"
 
 check:	
-	./selftest.sh
+	cd selftests && ./selftest.sh
 
 clean:	
 	rm -f jobqueue *.o
