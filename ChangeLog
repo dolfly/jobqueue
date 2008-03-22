@@ -2,6 +2,15 @@
 #
 # git clone git://zakalwe.fi/jobqueue
 
+2008-03-22  Heikki Orsila <heikki.orsila@iki.fi>
+	* version 0.03
+	- Added --restart-failed and --max-restart=n options. These options
+	  allow restarting failed jobs and migrating jobs away from
+	  failed nodes.
+
+	- Added --max-issue=n option to keep more than one job running on
+	  each node. This is useful with multiprocessor/core machines.
+
 2008-01-11  Heikki Orsila <heikki.orsila@iki.fi>
 	* version 0.02
 	- Optimized job processing from multiple files
