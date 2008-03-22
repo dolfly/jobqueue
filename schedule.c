@@ -33,10 +33,11 @@ enum job_result {
 struct job {
 	size_t jobnumber;
 	char *cmd;
+	int retries;
 };
 
 struct job_ack {
-	size_t jobnumber;
+	struct job *job;
 	int place;
 	enum job_result result;
 };
@@ -49,7 +50,31 @@ struct executionplace {
 
 static struct vplist failedjobs = VPLIST_INITIALIZER;
 
-static struct vplist runningjobs = VPLIST_INITIALIZER;
+static void free_job(struct job *job)
+{
+	free(job->cmd);
+	job->cmd = NULL;
+
+	job->jobnumber = -1;
+	job->retries = -1;
+
+	free(job);
+}
+
+
+static int test_job_restart(struct job *job)
+{
+	if (job->retries < requeuefailedjobs) {
+		job->retries++;
+
+		if (vplist_append(&failedjobs, job))
+			die("Out of memory: can not requeue failed job\n");
+
+		return 0;
+	}
+
+	return 1;
+}
 
 
 static void read_job_ack(size_t *jobsdone, int fd,
@@ -58,10 +83,8 @@ static void read_job_ack(size_t *jobsdone, int fd,
 	struct job_ack joback;
 	ssize_t ret;
 	struct executionplace *place;
-	struct vplist *listnode;
-	struct job *job;
-	int found;
 	char *machine;
+	int jobdone;
 
 	ret = read(fd, &joback, sizeof joback);
 	if (ret < 0) {
@@ -104,38 +127,22 @@ static void read_job_ack(size_t *jobsdone, int fd,
 		place->jobsrunning--;
 
 	if (requeuefailedjobs) {
-
-		if (joback.result == JOB_SUCCESS) {
-			(*jobsdone)++;
-		} else {
-			found = 0;
-			job = NULL;
-
-			VPLIST_FOR_EACH(listnode, &runningjobs) {
-				job = listnode->item;
-
-				if (job->jobnumber == joback.jobnumber) {
-					found = 1;
-					break;
-				}
-			}
-
-			assert(found);
-
-			/* Remove the job from runningjobs, and
-			 *  add it to failedjobs to restart it later */
-			if (vplist_remove_item(&runningjobs, job))
-				die("BUG: running jobs item not found\n");
-
-			if (vplist_append(&failedjobs, job))
-				die("Out of memory: can not requeue failed job\n");
-		}
+		if (joback.result == JOB_SUCCESS)
+			jobdone = 1;
+		else
+			jobdone = test_job_restart(joback.job);
 	} else {
+		/* jobdone is TRUE in no-restart mode */
+		jobdone = 1;
+	}
+
+	if (jobdone) {
+		free_job(joback.job);
 		(*jobsdone)++;
 	}
 
 	if (VERBOSE)
-		fprintf(stderr, "Job %zd finished %s\n", joback.jobnumber,
+		fprintf(stderr, "Job %zd finished %s\n", joback.job->jobnumber,
 			joback.result == JOB_SUCCESS ?
 			"successfully" : "unsuccessfully");
 }
@@ -165,9 +172,6 @@ static struct job *read_job(FILE **jobfile, size_t *jobsread)
 
 	job = vplist_pop_head(&failedjobs);
 	if (job != NULL) {
-		if (vplist_append(&runningjobs, job))
-			die("Out of memory: can not re-add job\n");
-
 		/* Do not increase *jobsread for restarted jobs */
 		return job;
 	}
@@ -195,13 +199,11 @@ static struct job *read_job(FILE **jobfile, size_t *jobsread)
 		die("Can not allocate memory for job: %s\n", cmd);
 
 	*job = (struct job) {.jobnumber = *jobsread,
+			     .retries = 0,
 			     .cmd = strdup(cmd)};
 
 	if (job->cmd == NULL)
 		die("Can not allocate memory for cmd: %s\n", cmd);
-
-	if (vplist_append(&runningjobs, job))
-		die("Can not append job to running list: %s\n", cmd);
 
 	(*jobsread)++;
 
@@ -209,11 +211,11 @@ static struct job *read_job(FILE **jobfile, size_t *jobsread)
 }
 
 
-static void run(const struct job *job, int ps, int fd)
+static void run(struct job *job, int ps, int fd)
 {
 	ssize_t ret;
 	char cmd[MAX_CMD_SIZE];
-	struct job_ack joback = {.jobnumber = job->jobnumber,
+	struct job_ack joback = {.job = job,
 				 .place = ps,
 	                         .result = JOB_FAILURE};
 	char *machine;
