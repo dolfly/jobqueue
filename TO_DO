@@ -1,7 +1,5 @@
 List of features to implement:
 
-	* issue multiple jobs / node (useful for clusters of SMP machines)
-
 	* progress meter
 
 	* simulation mode: no execution
@@ -9,7 +7,7 @@ List of features to implement:
 	* randomize node assignment
 
 	* re-run for failed jobs
-		* support for node failures -> transfer jobs
+		* maximum number of retries (add warning to documentation)
 
 	* task graph scheduling
 		* pure simulation mode: do only scheduling

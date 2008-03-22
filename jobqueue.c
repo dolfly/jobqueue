@@ -40,7 +40,7 @@ static struct vplist jobfilenames = VPLIST_INITIALIZER;
 static const char *USAGE =
 "\n"
 "SYNTAX:\n"
-"\tjobqueue [-e] [-n x] [-m list] [-v] [--version] [-x n] [FILE ...]\n"
+"\tjobqueue [-e] [-n x] [-m list] [-r] [-v] [--version] [-x n] [FILE ...]\n"
 "\n"
 "jobqueue is a tool for executing lists of jobs on several processors or\n"
 "machines in parallel. jobqueue reads jobs (shell commands) from files. If no\n"
@@ -63,6 +63,12 @@ static const char *USAGE =
 "    -e passes the execution place as an integer, but this option passes the\n"
 "    execution place as a name for the job. Also, this option implies \"-n x\",\n"
 "    where x is the number of names read from the file.\n"
+"\n"
+" -r / --restart-failed, If a job that is executed returns an error code, it is\n"
+"    restarted (possibly on other execution place). If the error code is 1, the\n"
+"    job simply failed and it is restarted. If the error code is 2, the\n"
+"    execution place is marked as being failed, and thus, no additional jobs\n"
+"    will be started on that node.\n"
 "\n"
 " -v / --verbose, enter verbose mode. Print each command that is executed.\n"
 "\n"
@@ -226,7 +232,7 @@ int main(int argc, char *argv[])
 		OPT_HELP            = 'h',
 		OPT_MACHINE_LIST    = 'm',
 		OPT_NODES           = 'n',
-		OPT_REQUEUE_FAILED  = 'r',
+		OPT_RESTART_FAILED  = 'r',
 		OPT_MULTIISSUE      = 'x',
 		OPT_VERBOSE         = 'v',
 		OPT_VERSION         = 1000,
@@ -238,7 +244,7 @@ int main(int argc, char *argv[])
 		{.name = "machine-list", .has_arg = 1, .val = OPT_MACHINE_LIST},
 		{.name = "multi-issue",  .has_arg = 1, .val = OPT_MULTIISSUE},
 		{.name = "nodes",        .has_arg = 1, .val = OPT_NODES},
-		{.name = "requeue-failed", .has_arg = 0, .val = OPT_REQUEUE_FAILED},
+		{.name = "restart-failed", .has_arg = 0, .val = OPT_RESTART_FAILED},
 		{.name = "verbose", .has_arg = 0, .val = OPT_VERBOSE},
 		{.name = "version", .has_arg = 0, .val = OPT_VERSION},
 		{.name = NULL}};

@@ -24,9 +24,10 @@
 
 
 enum job_result {
-	JOB_SUCCESS,
+	JOB_SUCCESS = 0,
 	JOB_FAILURE,
-	JOB_BROKEN_EXECUTION_PLACE
+	JOB_BROKEN_EXECUTION_PLACE,
+	JOB_RESULT_MAXIMUM
 };
 
 struct job {
@@ -51,12 +52,13 @@ static struct vplist failedjobs = VPLIST_INITIALIZER;
 static struct vplist runningjobs = VPLIST_INITIALIZER;
 
 
-static int read_job_ack(int fd, struct executionplace *places, int nplaces)
+static void read_job_ack(size_t *jobsdone, int fd,
+			 struct executionplace *places, int nplaces)
 {
 	struct job_ack joback;
 	ssize_t ret;
 	struct executionplace *place;
-	struct vplist *listitem;
+	struct vplist *listnode;
 	struct job *job;
 	int found;
 	char *machine;
@@ -64,7 +66,7 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 	ret = read(fd, &joback, sizeof joback);
 	if (ret < 0) {
 		if (errno == EAGAIN || errno == EINTR)
-			return 0;
+			return;
 
 		die("read %zd: %s)\n", ret, strerror(errno));
 	} else if (ret == 0) {
@@ -78,11 +80,9 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 
 	place = &places[joback.place];
 
-	if (joback.result == JOB_BROKEN_EXECUTION_PLACE) {
-		place->broken = 1;
-
+	if (requeuefailedjobs && joback.result == JOB_BROKEN_EXECUTION_PLACE) {
 		/* The execution place is broken, prevent new jobs to it */
-		place->jobsrunning = multiissue;
+		place->broken = 1;
 
 		if (machinelist.next != NULL) {
 			machine = vplist_get(&machinelist, joback.place);
@@ -103,32 +103,41 @@ static int read_job_ack(int fd, struct executionplace *places, int nplaces)
 	else
 		place->jobsrunning--;
 
-	if (requeuefailedjobs && joback.result != JOB_SUCCESS) {
-		found = 0;
-		job = NULL;
+	if (requeuefailedjobs) {
 
-		VPLIST_FOR_EACH(listitem, &runningjobs) {
-			job = listitem->item;
-			if (job->jobnumber == joback.jobnumber) {
-				found = 1;
-				break;
+		if (joback.result == JOB_SUCCESS) {
+			(*jobsdone)++;
+		} else {
+			found = 0;
+			job = NULL;
+
+			VPLIST_FOR_EACH(listnode, &runningjobs) {
+				job = listnode->item;
+
+				if (job->jobnumber == joback.jobnumber) {
+					found = 1;
+					break;
+				}
 			}
+
+			assert(found);
+
+			/* Remove the job from runningjobs, and
+			 *  add it to failedjobs to restart it later */
+			if (vplist_remove_item(&runningjobs, job))
+				die("BUG: running jobs item not found\n");
+
+			if (vplist_append(&failedjobs, job))
+				die("Out of memory: can not requeue failed job\n");
 		}
-
-		assert(0); /* must remove job from runningjobs */
-
-		assert(found);
-
-		if (vplist_append(&failedjobs, job))
-			die("Out of memory: can not requeue failed job\n");
+	} else {
+		(*jobsdone)++;
 	}
 
 	if (verbosemode)
 		fprintf(stderr, "Job %zd finished %s\n", joback.jobnumber,
 			joback.result == JOB_SUCCESS ?
 			"successfully" : "unsuccessfully");
-
-	return 1;
 }
 
 
@@ -136,7 +145,7 @@ static void write_job_ack(int fd, struct job_ack joback, const char *cmd)
 {
 	ssize_t ret;
 
-	/* pipe(7) guarantees write atomicity when sizeof(ps) <= PIPE_BUF */
+	/* pipe(7) guarantees write atomicity when size <= PIPE_BUF */
 	assert(sizeof(joback) <= PIPE_BUF);
 
 	ret = write(fd, &joback, sizeof joback);
@@ -148,7 +157,7 @@ static void write_job_ack(int fd, struct job_ack joback, const char *cmd)
 }
 
 
-static struct job *read_job(FILE **jobfile, size_t jobnumber)
+static struct job *read_job(FILE **jobfile, size_t *jobsread)
 {
 	ssize_t ret;
 	struct job *job;
@@ -159,6 +168,7 @@ static struct job *read_job(FILE **jobfile, size_t jobnumber)
 		if (vplist_append(&runningjobs, job))
 			die("Out of memory: can not re-add job\n");
 
+		/* Do not increase *jobsread for restarted jobs */
 		return job;
 	}
 
@@ -184,13 +194,16 @@ static struct job *read_job(FILE **jobfile, size_t jobnumber)
 	if (job == NULL)
 		die("Can not allocate memory for job: %s\n", cmd);
 
-	*job = (struct job) {.jobnumber = jobnumber,
+	*job = (struct job) {.jobnumber = *jobsread,
 			     .cmd = strdup(cmd)};
 
 	if (job->cmd == NULL)
 		die("Can not allocate memory for cmd: %s\n", cmd);
 
-	vplist_append(&runningjobs, job);
+	if (vplist_append(&runningjobs, job))
+		die("Can not append job to running list: %s\n", cmd);
+
+	(*jobsread)++;
 
 	return job;
 }
@@ -205,7 +218,7 @@ static void run(const struct job *job, int ps, int fd)
 	                         .result = JOB_FAILURE};
 	char *machine;
 
-	if (machinelist.next != NULL) {
+	if (!vplist_is_empty(&machinelist)) {
 
 		machine = vplist_get(&machinelist, ps);
 		assert(machine != NULL);
@@ -227,15 +240,23 @@ static void run(const struct job *job, int ps, int fd)
 
 	ret = system(cmd);
 	if (ret == -1) {
-
-		if (WEXITSTATUS(ret) == 2)
-			joback.result = JOB_BROKEN_EXECUTION_PLACE;
-
 		write_job_ack(fd, joback, cmd);
 		die("job delivery failed: %s\n", cmd);
 	}
 
-	joback.result = JOB_SUCCESS;
+	ret = WEXITSTATUS(ret);
+
+	if (ret < JOB_RESULT_MAXIMUM) {
+		joback.result = ret;
+	} else {
+		/* Mark large return code as a failure */
+		joback.result = JOB_FAILURE;
+
+		if (requeuefailedjobs)
+			fprintf(stderr, "Invalid return code %d from: %s\n"
+				"Intepreting this as a failure.\n",
+				(int) ret, cmd);
+	}
 
 	write_job_ack(fd, joback, cmd);
 }
@@ -245,7 +266,7 @@ void schedule(int nplaces)
 {
 	struct executionplace *places;
 	int pindex;
-	int p[2];
+	int ackpipe[2];
 	size_t jobsread = 0;
 	size_t jobsdone = 0;
 	int exitmode = 0;
@@ -253,6 +274,9 @@ void schedule(int nplaces)
 	struct job *job;
 	int allbroken;
 	pid_t child;
+	int somethingtoissue;
+	int possibletoissue;
+	int somethingtowait;
 
 	jobfile = get_next_jobfile();
 	if (jobfile == NULL)
@@ -260,7 +284,7 @@ void schedule(int nplaces)
 
 	assert(nplaces > 0);
 
-	if (pipe_closeonexec(p))
+	if (pipe_closeonexec(ackpipe))
 		die("Can not create a pipe: %s\n", strerror(errno));
 
 	/* All processing stations are non-busy in the beginning -> calloc() */
@@ -281,41 +305,63 @@ void schedule(int nplaces)
 		}
 
 		if (allbroken)
-			die("SYSTEM FAILURE. All execution places dead.\n");
+			die("ALL EXECUTION PLACES HAVE DIED\n");
 
-		if (pindex == nplaces || (exitmode && jobsdone < jobsread)) {
+		possibletoissue = (pindex < nplaces);
 
-			if (read_job_ack(p[0], places, nplaces))
-				jobsdone++;
+		somethingtoissue = (!vplist_is_empty(&failedjobs) || !exitmode);
+
+		somethingtowait = (jobsdone < jobsread);
+
+		/* Possible cases for event finish state machine.
+		 *
+		 * PI = "possibletoissue", SI = "somethingtoissue"
+		 * SW = "somethingtowait"
+                 *
+		 *  state | PI | SI | SW | Action
+		 *  -----------------------------
+		 *  0     | 0    0    0  | EXIT
+		 *  1     | 0    0    1  | WAIT
+		 *  2     | 0    1    0  | WAIT
+		 *  3     | 0    1    1  | WAIT
+		 *  4     | 1    0    0  | EXIT
+		 *  5     | 1    0    1  | WAIT
+		 *  6     | 1    1    0  | ISSUE
+		 *  7     | 1    1    1  | ISSUE
+		 */
+
+		/* States 6 and 7 */
+		if (possibletoissue && somethingtoissue) {
+			job = read_job(&jobfile, &jobsread);
+			if (job == NULL) {
+				exitmode = 1; /* No more jobfiles -> exit */
+				continue;
+			}
+
+			places[pindex].jobsrunning++;
+
+			child = fork();
+			if (child == 0) {
+				/* Close some child file descriptors */
+				close(0);
+				close(ackpipe[0]);
+
+				run(job, pindex, ackpipe[1]);
+
+				exit(0);
+			} else if (child < 0) {
+				die("Can not fork()\n");
+			}
 
 			continue;
 		}
 
-		if (exitmode && jobsdone == jobsread)
+		/* States 0 and 4 */
+		if (!somethingtoissue && !somethingtowait)
 			break;
 
-		job = read_job(&jobfile, jobsread);
-		if (job == NULL) {
-			exitmode = 1; /* No more jobfiles -> exit */
-			continue;
-		}
-
-		jobsread++;
-
-		places[pindex].jobsrunning++;
-
-		child = fork();
-		if (child == 0) {
-			/* Close some child file descriptors */
-			close(0);
-			close(p[0]);
-
-			run(job, pindex, p[1]);
-
-			exit(0);
-		} else if (child < 0) {
-			die("Can not fork()\n");
-		}
+		/* States 1, 2, 3, 5 */
+		read_job_ack(&jobsdone, ackpipe[0], places, nplaces);
 	}
 
 	fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
