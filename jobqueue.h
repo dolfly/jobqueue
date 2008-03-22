@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include "vplist.h"
 
+#define VERBOSE (verbosemode > 0)
+
 extern struct vplist machinelist;
 extern int maxissue;
 extern int requeuefailedjobs;

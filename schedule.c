@@ -134,7 +134,7 @@ static void read_job_ack(size_t *jobsdone, int fd,
 		(*jobsdone)++;
 	}
 
-	if (verbosemode)
+	if (VERBOSE)
 		fprintf(stderr, "Job %zd finished %s\n", joback.jobnumber,
 			joback.result == JOB_SUCCESS ?
 			"successfully" : "unsuccessfully");
@@ -235,7 +235,7 @@ static void run(const struct job *job, int ps, int fd)
 		die("Too long a command: %s\n", job->cmd);
 	}
 
-	if (verbosemode)
+	if (VERBOSE)
 		fprintf(stderr, "Job %zd execute: %s\n", job->jobnumber, cmd);
 
 	ret = system(cmd);
@@ -364,5 +364,6 @@ void schedule(int nplaces)
 		read_job_ack(&jobsdone, ackpipe[0], places, nplaces);
 	}
 
-	fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
+	if (VERBOSE)
+		fprintf(stderr, "All jobs done (%zd)\n", jobsdone);
 }
