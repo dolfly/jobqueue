@@ -34,34 +34,34 @@ struct dgraph {
 	void *data;        /* Can be used by the application for any purpose */
 };
 
-/* dag_add_edge() adds an edge from src node to dst node with a user-supplied
+/* agl_add_edge() adds an edge from src node to dst node with a user-supplied
  * data pointer.
  *
  * Returns 0 on success, -1 otherwise.
  */
-int dag_add_edge(struct dgraph *graph, size_t src, size_t dst, void *data);
+int agl_add_edge(struct dgraph *graph, size_t src, size_t dst, void *data);
 
-/* dag_add_node() adds a node to the graph. data is a user-specified pointer
+/* agl_add_node() adds a node to the graph. data is a user-specified pointer
  * that can be used for any purpose.
  *
  * Returns 0 on success, -1 otherwise.
  */
-int dag_add_node(struct dgraph *graph, void *data);
+int agl_add_node(struct dgraph *graph, void *data);
 
-/* dag_create() creates a graph
+/* agl_create() creates a graph
  *
- * This function is same as dag_init() but the graph is allocated.
+ * This function is same as agl_init() but the graph is allocated.
  * Returns a graph structure pointer on success and NULL on error.
  */
-struct dgraph *dag_create(size_t nnodeshint, void *data);
+struct dgraph *agl_create(size_t nnodeshint, void *data);
 
-/* dag_deinit() frees all resources allocated for the graph. However,
+/* agl_deinit() frees all resources allocated for the graph. However,
  * it does not free the given graph pointer. This call must be paired with
- * dag_init(), but not with dag_create().
+ * agl_init(), but not with agl_create().
  */
-void dag_deinit(struct dgraph *graph);
+void agl_deinit(struct dgraph *graph);
 
-/* dag_dfs() does a depth first search into the graph. No node is visited
+/* agl_dfs() does a depth first search into the graph. No node is visited
  * twice. Only nodes that are reachable through edges from the initial node
  * are visited.
  *
@@ -83,10 +83,10 @@ void dag_deinit(struct dgraph *graph);
  * Otherwise 0 is returned. In other words, 0 and 1 indicate a success,
  * but -1 indicates an error.
  */
-int dag_dfs(struct dgraph *graph, size_t initial, char *visited,
+int agl_dfs(struct dgraph *graph, size_t initial, char *visited,
 	    int (*f)(struct dgnode *node, void *data), void *data);
 
-/* dag_init() initializes a graph
+/* agl_init() initializes a graph
  * 
  * parameters:
  * 
@@ -97,6 +97,6 @@ int dag_dfs(struct dgraph *graph, size_t initial, char *visited,
  *
  * Returns 0 on success, -1 on failure.
  */
-int dag_init(struct dgraph *graph, size_t nnodeshint, void *data);
+int agl_init(struct dgraph *graph, size_t nnodeshint, void *data);
 
 #endif

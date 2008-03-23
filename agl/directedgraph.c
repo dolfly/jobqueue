@@ -50,7 +50,7 @@ static void deinit_node(struct dgnode *node)
 	memset(node, 0, sizeof *node);
 }
 
-int dag_add_edge(struct dgraph *graph, size_t src, size_t dst, void *data)
+int agl_add_edge(struct dgraph *graph, size_t src, size_t dst, void *data)
 {
 	struct dgnode *sn, *dn;
 	struct dgedge tmpedge = {.src = src,
@@ -83,7 +83,7 @@ int dag_add_edge(struct dgraph *graph, size_t src, size_t dst, void *data)
 	return 0;
 }
 
-int dag_add_node(struct dgraph *graph, void *data)
+int agl_add_node(struct dgraph *graph, void *data)
 {
 	int success;
 	struct dgnode node = {.i = graph->n,
@@ -94,14 +94,14 @@ int dag_add_node(struct dgraph *graph, void *data)
 	return success;
 }
 
-struct dgraph *dag_create(size_t nnodeshint, void *data)
+struct dgraph *agl_create(size_t nnodeshint, void *data)
 {
 	struct dgraph *dg = malloc(sizeof(struct dgraph));
 
 	if (dg == NULL)
 		return NULL;
 
-	if (dag_init(dg, nnodeshint, data)) {
+	if (agl_init(dg, nnodeshint, data)) {
 		free(dg);
 		return NULL;
 	}
@@ -109,7 +109,7 @@ struct dgraph *dag_create(size_t nnodeshint, void *data)
 	return dg;
 }
 
-void dag_deinit(struct dgraph *graph)
+void agl_deinit(struct dgraph *graph)
 {
 	size_t i;
 
@@ -121,7 +121,7 @@ void dag_deinit(struct dgraph *graph)
 	memset(graph, 0, sizeof *graph);
 }
 
-int dag_dfs(struct dgraph *graph, size_t initial, char *visited,
+int agl_dfs(struct dgraph *graph, size_t initial, char *visited,
 	    int (*f)(struct dgnode *node, void *data), void *data)
 {
 	size_t src, dst, j;
@@ -190,7 +190,7 @@ int dag_dfs(struct dgraph *graph, size_t initial, char *visited,
 	return ret;
 }
 
-int dag_init(struct dgraph *graph, size_t nnodeshint, void *data)
+int agl_init(struct dgraph *graph, size_t nnodeshint, void *data)
 {
 	size_t s;
 
