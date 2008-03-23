@@ -121,6 +121,75 @@ void dag_deinit(struct dgraph *graph)
 	memset(graph, 0, sizeof *graph);
 }
 
+int dag_dfs(struct dgraph *graph, size_t initial, char *visited,
+	    int (*f)(struct dgnode *node, void *data), void *data)
+{
+	size_t src, dst, j;
+	size_t n = 0;
+	size_t allocated = 0;
+	size_t *stack = NULL;
+	struct dgnode *node;
+	int ret = 0;
+	int visitedallocated = 0;
+	int success;
+
+	assert(initial < graph->n);
+
+	if (visited == NULL) {
+		visited = calloc(1, graph->n);
+		if (visited == NULL) {
+			ret = -1;
+			goto out;
+		}
+
+		visitedallocated = 1;
+	}
+
+	darray_append(success, n, allocated, stack, initial);
+	if (success) {
+		ret = -1;
+		goto out;
+	}
+
+	while (n > 0) {
+		/* Pop the last value from the stack */
+		n--;
+		src = stack[n];
+		assert(src < graph->n);
+
+		/* Mark node as visited */
+		visited[src] = 1;
+
+		node = &graph->nodes[src];
+
+		if (f(node, data)) {
+			ret = 1;
+			break;
+		}
+
+		for (j = 0; j < node->nout; j++) {
+			dst = node->out[j].dst;
+			assert(dst < graph->n);
+
+			if (visited[dst])
+				continue;
+
+			darray_append(success, n, allocated, stack, dst);
+			if (success) {
+				ret = -1;
+				goto out;
+			}
+		}
+	}
+ out:
+	if (visitedallocated)
+		free(visited);
+
+	free(stack);
+
+	return ret;
+}
+
 int dag_init(struct dgraph *graph, size_t nnodeshint, void *data)
 {
 	size_t s;

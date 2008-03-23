@@ -61,17 +61,42 @@ struct dgraph *dag_create(size_t nnodeshint, void *data);
  */
 void dag_deinit(struct dgraph *graph);
 
+/* dag_dfs() does a depth first search into the graph. No node is visited
+ * twice. Only nodes that are reachable through edges from the initial node
+ * are visited.
+ *
+ * parameters:
+ *
+ * graph:   Pointer to the graph
+ * initial: Number of the DFS start node, in range [0, graph->n)
+ * visited: Array of n characters, where n == graph->n. If given as NULL,
+ *          it will not be possible to track DFS node visits directly.
+ *          However, DFS node visits can be tracked with function f() and
+ *          the data variable. On the first call, visited array must be
+ *          initialized with zeros, otherwise not all nodes will be visited.
+ * f:       Function f is called at each visited node. If function f returns
+ *          a non-zero value, the search is terminated immediately. Otherwise
+ *          the search is continued normally.
+ * data:    A user-specified data pointer given to function f at each visit
+ *          
+ * Returns -1 if an error occured. If f() returns non-zero, 1 is returned.
+ * Otherwise 0 is returned. In other words, 0 and 1 indicate a success,
+ * but -1 indicates an error.
+ */
+int dag_dfs(struct dgraph *graph, size_t initial, char *visited,
+	    int (*f)(struct dgnode *node, void *data), void *data);
+
 /* dag_init() initializes a graph
  * 
  * parameters:
  * 
- * dag:   Pointer to a struct dgraph that should be initialized
+ * graph: Pointer to a struct dgraph that should be initialized
  * nodes: A hint about final number of nodes in the graph. This can be
  *        set to zero without any loss of flexibility.
  * data:  Arbitrary pointer given by the user. It can be used for any purpose.
  *
  * Returns 0 on success, -1 on failure.
  */
-int dag_init(struct dgraph *dag, size_t nnodeshint, void *data);
+int dag_init(struct dgraph *graph, size_t nnodeshint, void *data);
 
 #endif
