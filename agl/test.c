@@ -8,16 +8,12 @@ int mydfs1(struct dgnode *node, void *data)
 {
 	assert(data == NULL);
 
-	fprintf(stderr, "Visit node %zd\n", node->i);
-
 	return 0;
 }
 
 int mydfs2(struct dgnode *node, void *data)
 {
 	assert(data == NULL);
-
-	fprintf(stderr, "Visit node %zd\n", node->i);
 
 	return (node->i == 2) ? 1 : 0;
 }
@@ -50,14 +46,21 @@ int main(void)
 		}
 	}
 
-	dag_dfs(&dg, 0, NULL, mydfs1, NULL);
+	assert(dag_dfs(&dg, 0, NULL, mydfs1, NULL) == 0);
 
+	/* Test incomplete DFS */
 	assert(n == 4);
 	memset(visited, 0, n);
-	dag_dfs(&dg, 0, visited, mydfs2, NULL);
-
+	assert(dag_dfs(&dg, 0, visited, mydfs2, NULL) == 1);
 	assert(visited[0] != 0 && visited[1] != 0 && visited[2] != 0 &&
 	       visited[3] == 0);
+
+	/* A deadlock test for DFS */
+	if (dag_add_edge(&dg, 1, 0, NULL)) {
+		fprintf(stderr, "Can not add feedback edge\n");
+		exit(1);
+	}
+	assert(dag_dfs(&dg, 0, NULL, mydfs1, NULL) == 0);
 
 	dag_deinit(&dg);
 
