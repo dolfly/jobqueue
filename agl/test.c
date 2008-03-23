@@ -31,6 +31,9 @@ int main(void)
 	size_t fin[4];
 	int cyclic;
 	size_t *order;
+	struct dgnode *node;
+	struct dgedge *edge;
+	size_t nedges;
 
 	fprintf(stderr, "Directed graph test\n");
 
@@ -70,6 +73,20 @@ int main(void)
 	assert(order != NULL);
 	assert(order[0] == 3 && order[1] == 2 && order[2] == 1 &&
 	       order[3] == 0);
+
+	/* Test AGL_FOR_EACH_NODE() and AGL_FOR_EACH_EDGE() */
+	memset(visited, 0, sizeof visited);
+	nedges = 0;
+	AGL_FOR_EACH_NODE(&dg, node) {
+		visited[node->i] = 1;
+		AGL_FOR_EACH_EDGE(node, edge)
+			nedges++;
+		AGL_END_FOR_EACH_EDGE();
+	}
+	AGL_END_FOR_EACH_NODE();
+	for (i = 0; i < n; i++)
+		assert(visited[i] != 0);
+	assert(nedges == 3);
 
 	/* A deadlock test for DFS */
 	if (agl_add_edge(&dg, 1, 0, NULL)) {

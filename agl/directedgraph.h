@@ -34,6 +34,18 @@ struct dgraph {
 	void *data;        /* Can be used by the application for any purpose */
 };
 
+#define AGL_FOR_EACH_NODE(graph, node) do { \
+	size_t _nodei; \
+	for (_nodei = 0; (node = &(graph)->nodes[_nodei]) != NULL && _nodei < (graph)->n; _nodei++)
+
+#define AGL_END_FOR_EACH_NODE() } while (0)
+
+#define AGL_FOR_EACH_EDGE(node, edge) do { \
+	size_t _edgei; \
+	for (_edgei = 0; (edge = &(node)->out[_edgei]) != NULL && _edgei < (node)->nout; _edgei++)
+
+#define AGL_END_FOR_EACH_EDGE() } while (0)
+
 /* agl_add_edge() adds an edge from src node to dst node with a user-supplied
  * data pointer.
  *
