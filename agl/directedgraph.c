@@ -121,7 +121,7 @@ void agl_deinit(struct dgraph *graph)
 	memset(graph, 0, sizeof *graph);
 }
 
-int agl_dfs(struct dgraph *graph, size_t initial, char *visited,
+int agl_dfs(struct dgraph *graph, size_t initial, char *visited, size_t *fin,
 	    int (*f)(struct dgnode *node, void *data), void *data)
 {
 	size_t src, dst, j;
@@ -132,6 +132,11 @@ int agl_dfs(struct dgraph *graph, size_t initial, char *visited,
 	int ret = 0;
 	int visitedallocated = 0;
 	int success;
+	int added;
+	size_t time = 0;
+
+	if (graph->n == 0)
+		return 0;
 
 	assert(initial < graph->n);
 
@@ -153,32 +158,58 @@ int agl_dfs(struct dgraph *graph, size_t initial, char *visited,
 
 	while (n > 0) {
 		/* Pop the last value from the stack */
-		n--;
-		src = stack[n];
+		src = stack[n - 1];
 		assert(src < graph->n);
-
-		/* Mark node as visited */
-		visited[src] = 1;
 
 		node = &graph->nodes[src];
 
-		if (f(node, data)) {
-			ret = 1;
-			break;
+		if (!visited[src]) {
+			/* Mark node as grey (at least once visited):
+			   value == 1 */
+			visited[src] = 1;
+
+			if (f != NULL && f(node, data)) {
+				ret = 1;
+				break;
+			}
 		}
+
+		added = 0;
 
 		for (j = 0; j < node->nout; j++) {
 			dst = node->out[j].dst;
 			assert(dst < graph->n);
 
-			if (visited[dst])
+			if (visited[dst]) {
+				/* If the node is grey, mark it is a node
+				   that belongs to a cycle: value == 3 */
+				if (visited[dst] == 1)
+					visited[dst] = 3;
+
 				continue;
+			}
 
 			darray_append(success, n, allocated, stack, dst);
 			if (success) {
 				ret = -1;
 				goto out;
 			}
+
+			added++;
+		}
+
+		if (!added) {
+			n--;
+
+			/* Mark node as black, if it doesn't belong to
+			   a cycle: value == 2 */
+			if (visited[src] != 3)
+				visited[src] = 2;
+
+			if (fin)
+				fin[src] = time;
+
+			time++;
 		}
 	}
  out:
@@ -186,6 +217,39 @@ int agl_dfs(struct dgraph *graph, size_t initial, char *visited,
 		free(visited);
 
 	free(stack);
+
+	return ret;
+}
+
+int agl_has_cycles(struct dgraph *graph)
+{
+	char *visited = NULL;
+	size_t i;
+	int ret = 0;
+
+	if (graph->n == 0)
+		goto out;
+
+	visited = calloc(1, graph->n);
+	if (visited == NULL) {
+		ret = -1;
+		goto out;
+	}
+
+	if (agl_dfs(graph, 0, visited, NULL, NULL, NULL)) {
+		ret = -1;
+		goto out;
+	}
+
+	for (i = 0; i < graph->n; i++) {
+		if (visited[i] == 3) {
+			ret = 1;
+			break;
+		}
+	}
+
+ out:
+	free(visited);
 
 	return ret;
 }
@@ -209,4 +273,92 @@ int agl_init(struct dgraph *graph, size_t nnodeshint, void *data)
 	graph->data = data;
 
 	return 0;
+}
+
+static int toposortcmp(const void *a, const void *b)
+{
+	const size_t *ra =  a;
+	const size_t *rb =  b;
+
+	if (*ra < *rb)
+		return -1;
+	else if (*rb < *ra)
+		return 1;
+
+	return 0;
+}
+
+size_t *agl_topological_sort(int *cyclic, struct dgraph *graph)
+{
+	size_t *fin = NULL;
+	char *visited;
+	size_t *order = NULL;
+	size_t src;
+
+	assert(cyclic != NULL);
+
+	*cyclic = 0;
+
+	if (graph->n == 0)
+		goto error;
+
+	order = malloc(sizeof(order[0]) * graph->n);
+	if (order == NULL)
+		goto error;
+
+	/* A trick, malloc twice the size to be able to sort later */
+	fin = malloc(2 * sizeof(fin[0]) * graph->n);
+	if (fin == NULL)
+		goto error;
+
+	/* A trick, we can use order array as DFS visited array because
+	   we need the order array much later */
+	visited = (char *) order;
+
+	memset(visited, 0, graph->n);
+
+	/* Do DFS for all nodes */
+	for (src = 0; src < graph->n; src++) {
+		if (visited[src])
+			continue;
+
+		if (agl_dfs(graph, src, visited, fin, NULL, NULL))
+			goto error;
+	}
+
+	/* Cycle test */
+	for (src = 0; src < graph->n; src++) {
+		if (visited[src] == 3) {
+			*cyclic = 1;
+			goto error;
+		}
+	}
+
+	/* In the fin array, there are finish times for each node:
+	   (fin_0, fin_1, ..., fin_n-1). We expand this array to
+	   (fin_0, 0, fin_1, 1, ..., fin_n-1, n-1). We allocated twice the
+	   size array to do this trick */
+	for (src = graph->n; src > 0;) {
+		src--;
+		fin[2 * src] = fin[src];
+		fin[2 * src + 1] = src;
+	}
+
+	/* Then we sort the list to ascending finish time order */
+	qsort(fin, graph->n, 2 * sizeof(fin[0]), toposortcmp);
+
+	/* And finally, we return the desired list containing node numbers
+	   in ascending finish time order */
+	for (src = 0; src < graph->n; src++)
+		order[src] = fin[src * 2 + 1];
+
+	goto out;
+
+ error:
+	free(order);
+	order = NULL;
+ out:
+	free(fin);
+
+	return order;
 }
