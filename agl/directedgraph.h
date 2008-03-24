@@ -138,7 +138,8 @@ int agl_dfs(struct dgraph *graph, size_t initial, char *visited, size_t *fin,
 void agl_free(struct dgraph *graph);
 
 /* agl_has_cycles() returns 1 if the graph has cycles, 0 if it doesn't have
- * cycles, and -1 on error
+ * cycles, and -1 on error. A cyclic graph has at least one node such that
+ * there exists a path from that node back to itself.
  */
 int agl_has_cycles(struct dgraph *graph);
 
