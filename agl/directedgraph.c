@@ -275,6 +275,9 @@ int agl_init(struct dgraph *graph, size_t nnodeshint, void *data)
 	return 0;
 }
 
+/* toposortcmp(a, b) returns -1 if b < a, 0 if a == b, and 1 if a < b.
+ * That is, the array is sorted in decreasing value order
+ */
 static int toposortcmp(const void *a, const void *b)
 {
 	const size_t *ra =  a;
