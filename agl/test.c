@@ -5,6 +5,44 @@
 
 #include "directedgraph.h"
 
+static void b_level_test(void)
+{
+	struct dgraph *graph;
+	size_t i, n;
+	double *blevels;
+
+	graph = agl_create(0, NULL);
+	assert(graph != NULL);
+
+	n = 6;
+	for (i = 0; i < n; i++) {
+		if (agl_add_node(graph, NULL)) {
+			fprintf(stderr, "Can not add node %zd\n", i);
+			exit(1);
+		}
+	}
+
+	agl_add_edge(graph, 0, 1, NULL);
+	agl_add_edge(graph, 1, 2, NULL);
+	agl_add_edge(graph, 1, 3, NULL);
+
+	agl_add_edge(graph, 4, 5, NULL);
+
+	blevels = agl_b_levels(graph, NULL, NULL, NULL);
+	assert(blevels != NULL);
+
+	fprintf(stderr, "blevels: ");
+	for (i = 0; i < n; i++)
+		fprintf(stderr, "%lf ", blevels[i]);
+	fprintf(stderr, "\n");
+
+	assert(blevels[0] == 3 && blevels[1] == 2 && blevels[2] == 1 &&
+	       blevels[3] == 1 && blevels[4] == 2 && blevels[5] == 1);
+
+	agl_free(graph);
+}
+
+
 int mydfs1(struct dgnode *node, void *data)
 {
 	assert(data == NULL);
@@ -108,6 +146,8 @@ int main(void)
 	assert(cyclic);
 
 	agl_deinit(&dg);
+
+	b_level_test();
 
 	return 0;
 }

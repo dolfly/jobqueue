@@ -94,6 +94,59 @@ int agl_add_node(struct dgraph *graph, void *data)
 	return success;
 }
 
+double *agl_b_levels(struct dgraph *graph,
+		     double (*nf)(struct dgnode *node, void *data),
+		     double (*ef)(struct dgedge *node, void *data),
+		     void *data)
+{
+	size_t *tsortorder = NULL;
+	int cyclic;
+	double *priorities = NULL;
+	struct dgnode *node, *child;
+	struct dgedge *edge;
+	double nodecost, maximum, pri;
+	size_t nodei, i;
+
+	if (graph->n == 0)
+		goto error;
+
+	tsortorder = agl_topological_sort(&cyclic, graph);
+	if (tsortorder == NULL)
+		goto error;
+
+	priorities = calloc(graph->n, sizeof priorities[0]);
+	if (priorities == NULL)
+		goto error;
+
+	for (i = graph->n; i > 0;) {
+		i--;
+		nodei = tsortorder[i];
+		node = &graph->nodes[nodei];
+
+		nodecost = (nf != NULL) ? nf(node, data) : 1.0;
+		maximum = nodecost;
+
+		AGL_FOR_EACH_EDGE(node, edge) {
+			child = &graph->nodes[edge->dst];
+
+			pri = priorities[child->i] + nodecost;
+
+			if (ef)
+				pri += ef(edge, data);
+
+			if (pri > maximum)
+				maximum = pri;
+		}
+		AGL_END_FOR_EACH_EDGE();
+
+		priorities[nodei] = maximum;
+	}
+
+ error:
+	free(tsortorder);
+	return priorities;
+}
+
 struct dgraph *agl_create(size_t nnodeshint, void *data)
 {
 	struct dgraph *dg = malloc(sizeof(struct dgraph));
@@ -141,7 +194,7 @@ int agl_dfs(struct dgraph *graph, size_t initial, char *visited, size_t *fin,
 	assert(initial < graph->n);
 
 	if (visited == NULL) {
-		visited = calloc(1, graph->n);
+		visited = calloc(graph->n, 1);
 		if (visited == NULL) {
 			ret = -1;
 			goto out;
@@ -221,6 +274,12 @@ int agl_dfs(struct dgraph *graph, size_t initial, char *visited, size_t *fin,
 	return ret;
 }
 
+void agl_free(struct dgraph *graph)
+{
+	agl_deinit(graph);
+	free(graph);
+}
+
 int agl_has_cycles(struct dgraph *graph)
 {
 	char *visited = NULL;
@@ -230,7 +289,7 @@ int agl_has_cycles(struct dgraph *graph)
 	if (graph->n == 0)
 		goto out;
 
-	visited = calloc(1, graph->n);
+	visited = calloc(graph->n, 1);
 	if (visited == NULL) {
 		ret = -1;
 		goto out;
@@ -266,7 +325,7 @@ int agl_init(struct dgraph *graph, size_t nnodeshint, void *data)
 	if (s == -1)
 		return -1;
 
-	graph->nodes = calloc(1, s);
+	graph->nodes = calloc(s, 1);
 	if (graph->nodes == NULL)
 		return -1;
 

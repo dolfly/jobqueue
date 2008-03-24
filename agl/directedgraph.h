@@ -36,15 +36,21 @@ struct dgraph {
 
 #define AGL_FOR_EACH_NODE(graph, node) do { \
 	size_t _nodei; \
-	for (_nodei = 0; (node = &(graph)->nodes[_nodei]) != NULL && _nodei < (graph)->n; _nodei++)
+	for (_nodei = 0; _nodei < (graph)->n && (node = &(graph)->nodes[_nodei]) != NULL; _nodei++)
 
 #define AGL_END_FOR_EACH_NODE() } while (0)
 
 #define AGL_FOR_EACH_EDGE(node, edge) do { \
 	size_t _edgei; \
-	for (_edgei = 0; (edge = &(node)->out[_edgei]) != NULL && _edgei < (node)->nout; _edgei++)
+	for (_edgei = 0; _edgei < (node)->nout && (edge = &(node)->out[_edgei]) != NULL; _edgei++)
 
 #define AGL_END_FOR_EACH_EDGE() } while (0)
+
+#define AGL_FOR_EACH_INCOMING_EDGE(node, edge) do { \
+	size_t _edgei; \
+	for (_edgei = 0; _edgei < (node)->nin && (edge = &(node)->in[_edgei]) != NULL; _edgei++)
+
+#define AGL_END_FOR_EACH_INCOMING_EDGE() } while (0)
 
 /* agl_add_edge() adds an edge from src node to dst node with a user-supplied
  * data pointer.
@@ -59,6 +65,29 @@ int agl_add_edge(struct dgraph *graph, size_t src, size_t dst, void *data);
  * Returns 0 on success, -1 otherwise.
  */
 int agl_add_node(struct dgraph *graph, void *data);
+
+/* agl_b_levels() computes the b-level (or bottom level) value for each
+ * node in the graph. b-level value of a node is the length of the longest path
+ * from that node to an exit node. Exit node is a node that has no outgoing
+ * edges. Length of a path is defined as a sum of node and edge weights
+ * on the path.
+ *
+ * Parameters:
+ *
+ * graph:          Pointer to a graph
+ * nf(node, data): nf() returns a node weight for a given node. If nf == NULL,
+ *                 all node weights have value 1.0.
+ * ef(edge, data): ef() returns an edge weight for a given edge. If ef == NULL,
+ *                 all edge weights have value 0.0.
+ * data:           A user-specified pointer given to both nf() and ef()
+ *
+ * Returns NULL on error, otherwise an array of b-level values. The array
+ * length is exactly graph->n elements. It must be freed with free().
+ */
+double *agl_b_levels(struct dgraph *graph,
+		     double (*nf)(struct dgnode *node, void *data),
+		     double (*ef)(struct dgedge *node, void *data),
+		     void *data);
 
 /* agl_create() creates a graph
  *
@@ -104,6 +133,10 @@ void agl_deinit(struct dgraph *graph);
 int agl_dfs(struct dgraph *graph, size_t initial, char *visited, size_t *fin,
 	    int (*f)(struct dgnode *node, void *data), void *data);
 
+/* agl_free() frees the graph allocated with agl_create()
+ */
+void agl_free(struct dgraph *graph);
+
 /* agl_has_cycles() returns 1 if the graph has cycles, 0 if it doesn't have
  * cycles, and -1 on error
  */
@@ -140,7 +173,8 @@ int agl_init(struct dgraph *graph, size_t nnodeshint, void *data);
  * Returns NULL on error (out of memory (*cycles == 0) or the graph has
  * cycles (*cycles == 1)). Otherwise, return a pointer to a graph->n
  * element array containing node numbers in topologically sorted order.
- * If graph->n == NULL, NULL is returned.
+ * If graph->n == NULL, NULL is returned. The returned array must be
+ * freed with free().
  */
 size_t *agl_topological_sort(int *cyclic, struct dgraph *graph);
 
