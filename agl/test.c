@@ -71,8 +71,8 @@ int main(void)
 	/* A topological sort test */
 	order = agl_topological_sort(&cyclic, &dg);
 	assert(order != NULL);
-	assert(order[0] == 3 && order[1] == 2 && order[2] == 1 &&
-	       order[3] == 0);
+	assert(order[0] == 0 && order[1] == 1 && order[2] == 2 &&
+	       order[3] == 3);
 
 	/* Test AGL_FOR_EACH_NODE() and AGL_FOR_EACH_EDGE() */
 	memset(visited, 0, sizeof visited);

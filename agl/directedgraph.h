@@ -122,10 +122,14 @@ int agl_has_cycles(struct dgraph *graph);
  */
 int agl_init(struct dgraph *graph, size_t nnodeshint, void *data);
 
-/* agl_topological_sort() does a topological sort for the graph:
- * http://en.wikipedia.org/wiki/Topological_sort
- *
- * This one also detects cycles.
+/* agl_topological_sort() does a topological sort for a directed acyclil graph
+ * ( http://en.wikipedia.org/wiki/Topological_sort ), and returns a
+ * sorted array of node numbers that are in topological order. An error is
+ * returned in if the graph is cyclic.
+ * 
+ * Topological order means that if node i is before node j in the
+ * sorted array then node i is an ancestor of node j in the graph.
+ * That means there is a directed path from i to j.
  *
  * Parameters:
  *

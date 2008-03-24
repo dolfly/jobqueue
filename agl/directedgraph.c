@@ -281,9 +281,9 @@ static int toposortcmp(const void *a, const void *b)
 	const size_t *rb =  b;
 
 	if (*ra < *rb)
-		return -1;
-	else if (*rb < *ra)
 		return 1;
+	else if (*rb < *ra)
+		return -1;
 
 	return 0;
 }
@@ -344,11 +344,11 @@ size_t *agl_topological_sort(int *cyclic, struct dgraph *graph)
 		fin[2 * src + 1] = src;
 	}
 
-	/* Then we sort the list to ascending finish time order */
+	/* Then we sort the list to descending finish time order */
 	qsort(fin, graph->n, 2 * sizeof(fin[0]), toposortcmp);
 
 	/* And finally, we return the desired list containing node numbers
-	   in ascending finish time order */
+	   in descending finish time order */
 	for (src = 0; src < graph->n; src++)
 		order[src] = fin[src * 2 + 1];
 
