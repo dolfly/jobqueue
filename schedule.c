@@ -165,9 +165,8 @@ static void write_job_ack(int fd, struct job_ack joback, const char *cmd)
 }
 
 
-static struct job *read_job(FILE **jobfile, size_t *jobsread)
+static struct job *read_job(size_t *jobsread, struct jobqueue *queue)
 {
-	ssize_t ret;
 	struct job *job;
 	char cmd[MAX_CMD_SIZE];
 
@@ -177,23 +176,8 @@ static struct job *read_job(FILE **jobfile, size_t *jobsread)
 		return job;
 	}
 
-	while (1) {
-		/* Read a new job and strip \n away from the command */
-		ret = read_stripped_line(cmd, sizeof cmd, *jobfile);
-		if (ret < 0) {
-			fclose(*jobfile);
-
-			*jobfile = get_next_jobfile();
-
-			if (*jobfile == NULL)
-				return NULL;
-
-			continue;
-		}
-
-		if (useful_line(cmd))
-			break;
-	}
+	if (!queue->next(cmd, sizeof cmd, queue))
+		return NULL;
 
 	job = malloc(sizeof job[0]);
 	if (job == NULL)
@@ -265,7 +249,7 @@ static void run(struct job *job, int ps, int fd)
 }
 
 
-void schedule(int nplaces)
+void schedule(int nplaces, struct jobqueue *queue)
 {
 	struct executionplace *places;
 	int pindex;
@@ -273,17 +257,12 @@ void schedule(int nplaces)
 	size_t jobsread = 0;
 	size_t jobsdone = 0;
 	int exitmode = 0;
-	FILE *jobfile;
 	struct job *job;
 	int allbroken;
 	pid_t child;
 	int somethingtoissue;
 	int possibletoissue;
 	int somethingtowait;
-
-	jobfile = get_next_jobfile();
-	if (jobfile == NULL)
-		exitmode = 1; /* If no valid files, go to exitmode */
 
 	assert(nplaces > 0);
 
@@ -335,9 +314,9 @@ void schedule(int nplaces)
 
 		/* States 6 and 7 */
 		if (possibletoissue && somethingtoissue) {
-			job = read_job(&jobfile, &jobsread);
+			job = read_job(&jobsread, queue);
 			if (job == NULL) {
-				exitmode = 1; /* No more jobfiles -> exit */
+				exitmode = 1; /* No more jobs -> exit mode */
 				continue;
 			}
 

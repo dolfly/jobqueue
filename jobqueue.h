@@ -12,6 +12,4 @@ extern int requeuefailedjobs;
 extern int passexecutionplace;
 extern int verbosemode;
 
-FILE *get_next_jobfile(void);
-
 #endif

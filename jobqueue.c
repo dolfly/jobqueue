@@ -22,7 +22,6 @@
 #include "schedule.h"
 #include "support.h"
 
-
 struct vplist machinelist = VPLIST_INITIALIZER;
 
 int maxissue = 1;
@@ -34,8 +33,6 @@ int passexecutionplace;
 int requeuefailedjobs;
 
 int verbosemode;
-
-static struct vplist jobfilenames = VPLIST_INITIALIZER;
 
 static const char *USAGE =
 "\n"
@@ -131,35 +128,6 @@ static const char *USAGE =
 "prints something like \"1 2 1 2 1\".\n";
 
 
-/* We try to fopen() each file in the jobfiles list, and return the first
- * successfully opened file. Otherwise return NULL.
- */
-FILE *get_next_jobfile(void)
-{
-	char *fname;
-	FILE *f = NULL;
-
-	do {
-		fname = vplist_pop_head(&jobfilenames);
-
-		if (fname == NULL)
-			break;
-
-		f = fopen(fname, "r");
-
-		if (f)
-			closeonexec(fileno(f));
-		else
-			fprintf(stderr, "Can't open file %s: %s\n", fname, strerror(errno));
-
-		free(fname);
-
-	} while (f == NULL);
-
-	return f;
-}
-
-
 static void print_help(void)
 {
 	printf("jobqueue %s by Heikki Orsila <heikki.orsila@iki.fi>\n", VERSION);
@@ -228,9 +196,7 @@ int main(int argc, char *argv[])
 	int nplacespassed = 0;
 	int l;
 	char *endptr;
-	char *jobfilename;
-	int i;
-	int use_stdin;
+	struct jobqueue *queue;
 
 	enum jobqueueoptions {
 		OPT_EXECUTION_PLACE = 'e',
@@ -240,6 +206,7 @@ int main(int argc, char *argv[])
 		OPT_NODES           = 'n',
 		OPT_RESTART_FAILED  = 'r',
 		OPT_MAX_ISSUE       = 'x',
+		OPT_TASK_GRAPH      = 't',
 		OPT_VERBOSE         = 'v',
 		OPT_VERSION         = 1001,
 	};
@@ -252,6 +219,7 @@ int main(int argc, char *argv[])
 		{.name = "max-restart",     .has_arg = 1, .val = OPT_MAX_RESTART},
 		{.name = "nodes",           .has_arg = 1, .val = OPT_NODES},
 		{.name = "restart-failed",  .has_arg = 0, .val = OPT_RESTART_FAILED},
+		{.name = "task-graph",      .has_arg = 1, .val = OPT_TASK_GRAPH},
 		{.name = "verbose",         .has_arg = 0, .val = OPT_VERBOSE},
 		{.name = "version",         .has_arg = 0, .val = OPT_VERSION},
 		{.name = NULL}};
@@ -259,24 +227,24 @@ int main(int argc, char *argv[])
 	setup_child_handler();
 	
 	while (1) {
-		ret = getopt_long(argc, argv, "ehm:n:rvx:", longopts, NULL);
+		ret = getopt_long(argc, argv, "ehm:n:rt:vx:", longopts, NULL);
 		if (ret == -1)
 			break;
 
 		switch (ret) {
-		case 'e':
+		case OPT_EXECUTION_PLACE:
 			passexecutionplace = 1;
 			break;
 
-		case 'h':
+		case OPT_HELP:
 			print_help();
 			exit(0);
 
-		case 'm':
+		case OPT_MACHINE_LIST:
 			nplaces = read_machine_list(optarg);
 			break;
 
-		case 'n':
+		case OPT_NODES:
 			l = strtol(optarg, &endptr, 10);
 
 			if ((l <= 0 || l >= INT_MAX) || *endptr != 0)
@@ -287,16 +255,19 @@ int main(int argc, char *argv[])
 			nplacespassed = 1;
 			break;
 
-		case 'r':
+		case OPT_RESTART_FAILED:
 			if (!requeuefailedjobs)
 				requeuefailedjobs = INT_MAX;
 			break;
 
-		case 'v':
+		case OPT_TASK_GRAPH:
+			die("Task graphs not yet implemented\n");
+
+		case OPT_VERBOSE:
 			verbosemode = 1;
 			break;
 
-		case 'x':
+		case OPT_MAX_ISSUE:
 			l = strtol(optarg, &endptr, 10);
 
 			if ((l <= 0 || l >= INT_MAX) || *endptr != 0)
@@ -327,32 +298,9 @@ int main(int argc, char *argv[])
 	    (nplacespassed && machinelist.next != NULL))
 		die("Error: -m MACHINELIST may not be used with -e and -n\n");
 
-	use_stdin = (optind == argc);
-	i = optind;
+	queue = cq_init(argv, optind, argc);
 
-	while (1) {
-		if (use_stdin) {
-			jobfilename = strdup("/dev/stdin");
-
-		} else {
-			if (i == argc)
-				break;
-
-			jobfilename = strdup(argv[i]);
-			i++;
-		}
-
-		if (jobfilename == NULL)
-			die("Can not allocate a filename for a job list\n");
-
-		if (vplist_append(&jobfilenames, jobfilename))
-			die("No memory for jobs\n");
-
-		if (use_stdin)
-			break;
-	}
-
-	schedule(nplaces);
+	schedule(nplaces, queue);
 
 	return 0;
 }
