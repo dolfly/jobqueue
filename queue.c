@@ -9,6 +9,19 @@
 #include "vplist.h"
 #include "agl/directedgraph.h"
 
+struct tgnode {
+	char *name;
+	char *cmd;
+	double cost;
+};
+
+struct tgedge {
+	size_t lineno;
+	char *src;
+	char *dst;
+	double cost;
+};
+
 struct tgjobs {
 	size_t ngraphs;
 	size_t njobs;
@@ -83,14 +96,59 @@ static int cq_next(char *cmd, size_t maxlen, struct jobqueue *queue)
 }
 
 
-static void tg_add_edge(struct tgjobs *tgjobs, char *src, char *value, char *dst)
+static int tg_add_edge(struct vplist *edgelist,
+		       char *src, char *value, char *dst, size_t lineno)
 {
-	printf("edge %s %s %s\n", src, value, dst);
+	double cost;
+	char *endptr;
+	struct tgedge *edge;
+
+	cost = strtod(value, &endptr);
+	if (*endptr != 0)
+		return -1;
+
+	edge = malloc(sizeof *edge);
+	src = strdup(src);
+	dst = strdup(dst);
+	if (edge == NULL || src == NULL || dst == NULL)
+		return -1;
+
+	*edge = (struct tgedge) {.lineno = lineno,
+				 .src = src,
+				 .dst = dst,
+				 .cost = cost};
+
+	if (vplist_append(edgelist, edge))
+		return -1;
+
+	return 0;
 }
 
-static void tg_add_node(struct tgjobs *tgjobs, char *name, char *value, char *cmd)
+static int tg_add_node(struct vplist *nodelist,
+		       char *name, char *value, char *cmd)
 {
-	printf("node %s %s %s\n", name, value, cmd);	
+	double cost;
+	char *endptr;
+	struct tgnode *node;
+
+	cost = strtod(value, &endptr);
+	if (*endptr != 0)
+		return -1;
+
+	node = malloc(sizeof *node);
+	cmd = strdup(cmd);
+	name = strdup(name);
+	if (node == NULL || cmd == NULL || node == NULL)
+		return -1;
+
+	*node = (struct tgnode) {.name = name,
+				 .cmd = cmd,
+				 .cost = cost};
+
+	if (vplist_append(nodelist, node))
+		return -1;
+
+	return 0;
 }
 
 /* Read one whitespace separated entry starting from offset i, skip
@@ -115,6 +173,23 @@ static int get_next_and_terminate(int *nexti, char *line, int i)
 	return i;
 }
 
+static void handle_nodes(struct dgraph *tg, struct vplist *nodelist)
+{
+	struct vplist *lnode;
+	struct tgnode *tgnode;
+
+	while ((tgnode = vplist_pop_head(nodelist)) != NULL) {
+
+		VPLIST_FOR_EACH(lnode, nodelist) {
+			if (strcmp(lnode->item, tgnode->name) == 0)
+				die("Duplicate node %s\n", tgnode->name);
+		}
+
+		if (agl_add_node(tg, tgnode))
+			die("Can not add node %s\n", tgnode->name);
+	}
+}
+
 static void tg_add_jobfile(struct jobqueue *queue, char *jobfilename)
 {
 	struct tgjobs *tgjobs = (struct tgjobs *) queue->data;
@@ -122,6 +197,9 @@ static void tg_add_jobfile(struct jobqueue *queue, char *jobfilename)
 	FILE *jobfile;
 	int namei, dstnamei, valuei, tokeni, cmdi, nexti;
 	ssize_t ret;
+	size_t lineno = 0;
+	struct vplist nodelist = VPLIST_INITIALIZER;
+	struct vplist edgelist = VPLIST_INITIALIZER;
 
 	if (tgjobs == NULL) {
 		tgjobs = calloc(1, sizeof(struct tgjobs));
@@ -142,6 +220,8 @@ static void tg_add_jobfile(struct jobqueue *queue, char *jobfilename)
 	}
 
 	while (1) {
+		lineno++;
+
 		ret = read_stripped_line(line, sizeof line, jobfile);
 		if (ret < 0)
 			break;
@@ -174,7 +254,10 @@ static void tg_add_jobfile(struct jobqueue *queue, char *jobfilename)
 			if (valuei < 0)
 				continue;
 
-			tg_add_edge(tgjobs, &line[namei], &line[valuei], &line[dstnamei]);
+			if (tg_add_edge(&edgelist, &line[namei], &line[valuei], &line[dstnamei], lineno))
+				dieerror("Can not add an edge: %s:%zd\n",
+					 jobfilename, lineno);
+					 
 		} else {
 			/* Got a job line: token index is a value index */
 			valuei = tokeni;
@@ -185,9 +268,11 @@ static void tg_add_jobfile(struct jobqueue *queue, char *jobfilename)
 			if (cmdi < 0)
 				continue;
 
-			tg_add_node(tgjobs, &line[namei], &line[valuei], &line[cmdi]);
+			tg_add_node(&nodelist, &line[namei], &line[valuei], &line[cmdi]);
 		}
 	}
+
+	handle_nodes(tgjobs->tg, &nodelist);
 
 	fclose(jobfile);
 }

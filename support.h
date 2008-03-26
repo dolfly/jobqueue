@@ -3,13 +3,18 @@
 
 #include <stdio.h>
 #include <unistd.h>
-
+#include <errno.h>
+#include <string.h>
 
 #define die(fmt, args...) do { \
     fprintf(stderr, fmt, ## args); \
     exit(1); \
   } while (0)
 
+#define dieerror(fmt, args...) do { \
+	fprintf(stderr, "pmr: " fmt ": %s\n", ## args, strerror(errno)); \
+	exit(1); \
+} while(0)
 
 int closeonexec(int fd);
 int pipe_closeonexec(int p[2]);
