@@ -197,6 +197,7 @@ int main(int argc, char *argv[])
 	int l;
 	char *endptr;
 	struct jobqueue *queue;
+	int taskgraphmode = 0;
 
 	enum jobqueueoptions {
 		OPT_EXECUTION_PLACE = 'e',
@@ -219,7 +220,7 @@ int main(int argc, char *argv[])
 		{.name = "max-restart",     .has_arg = 1, .val = OPT_MAX_RESTART},
 		{.name = "nodes",           .has_arg = 1, .val = OPT_NODES},
 		{.name = "restart-failed",  .has_arg = 0, .val = OPT_RESTART_FAILED},
-		{.name = "task-graph",      .has_arg = 1, .val = OPT_TASK_GRAPH},
+		{.name = "task-graph",      .has_arg = 0, .val = OPT_TASK_GRAPH},
 		{.name = "verbose",         .has_arg = 0, .val = OPT_VERBOSE},
 		{.name = "version",         .has_arg = 0, .val = OPT_VERSION},
 		{.name = NULL}};
@@ -227,7 +228,7 @@ int main(int argc, char *argv[])
 	setup_child_handler();
 	
 	while (1) {
-		ret = getopt_long(argc, argv, "ehm:n:rt:vx:", longopts, NULL);
+		ret = getopt_long(argc, argv, "ehm:n:rtvx:", longopts, NULL);
 		if (ret == -1)
 			break;
 
@@ -261,7 +262,8 @@ int main(int argc, char *argv[])
 			break;
 
 		case OPT_TASK_GRAPH:
-			die("Task graphs not yet implemented\n");
+			taskgraphmode = 1;
+			break;
 
 		case OPT_VERBOSE:
 			verbosemode = 1;
@@ -298,7 +300,7 @@ int main(int argc, char *argv[])
 	    (nplacespassed && machinelist.next != NULL))
 		die("Error: -m MACHINELIST may not be used with -e and -n\n");
 
-	queue = cq_init(argv, optind, argc);
+	queue = init_queue(argv, optind, argc, taskgraphmode);
 
 	schedule(nplaces, queue);
 

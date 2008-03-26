@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 
+#define MAX_CMD_SIZE 65536
+
 struct jobqueue;
 
 struct jobqueue {
@@ -11,6 +13,6 @@ struct jobqueue {
 	void *data;
 };
 
-struct jobqueue *cq_init(char *argv[], int i, int argc);
+struct jobqueue *init_queue(char *argv[], int i, int argc, int taskgraphmode);
 
 #endif

@@ -18,10 +18,7 @@
 #include "jobqueue.h"
 #include "schedule.h"
 #include "support.h"
-
-
-#define MAX_CMD_SIZE 65536
-
+#include "queue.h"
 
 enum job_result {
 	JOB_SUCCESS = 0,

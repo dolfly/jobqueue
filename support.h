@@ -16,6 +16,9 @@ int pipe_closeonexec(int p[2]);
 
 ssize_t read_stripped_line(char *buf, size_t buflen, FILE *f);
 
+int skipnws(const char *s, int i);
+int skipws(const char *s, int i);
+
 int useful_line(const char *buf);
 
 #endif
