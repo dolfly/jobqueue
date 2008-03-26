@@ -147,10 +147,10 @@ FILE *get_next_jobfile(void)
 
 		f = fopen(fname, "r");
 
-		if (f == NULL)
-			fprintf(stderr, "jobqueue: can't open %s\n", fname);
-
-		closeonexec(fileno(f));
+		if (f)
+			closeonexec(fileno(f));
+		else
+			fprintf(stderr, "Can't open file %s: %s\n", fname, strerror(errno));
 
 		free(fname);
 
