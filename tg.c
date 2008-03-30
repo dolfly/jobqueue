@@ -6,12 +6,6 @@
 #include "support.h"
 #include "vplist.h"
 
-enum tglinetype {
-	TG_EDGE_LINE,
-	TG_NODE_LINE,
-	TG_INVALID_LINE
-};
-
 struct tgline {
 	char *src;
 	char *dst;
@@ -101,13 +95,13 @@ static void handle_nodes(struct dgraph *tg, struct vplist *nodelist)
 	}
 }
 
-static enum tglinetype parse_line(struct tgline *tgline, char *line)
+static int parse_line(struct vplist *nodelist, struct vplist *edgelist,
+		      char *line)
 {
 	int namei, valuei, dsti, cmdi, tokeni, nexti;
-	enum tglinetype ret = TG_INVALID_LINE;
 	char *endptr;
-
-	memset(tgline, 0, sizeof tgline[0]);
+	int isedge;
+	struct tgline tgline = {.src = NULL};
 
 	/* Parse commands of the form:
 	 * name value cmd...
@@ -117,52 +111,57 @@ static enum tglinetype parse_line(struct tgline *tgline, char *line)
 	/* Get name index */
 	namei = get_next_and_terminate(&nexti, line, 0);
 	if (namei < 0)
-		goto out;
+		return 0;
 
-	tgline->src = &line[namei];
+	tgline.src = &line[namei];
 
 	/* Get value index or "->" */
 	tokeni = get_next_and_terminate(&nexti, line, nexti);
 	if (tokeni < 0)
-		goto out;
+		return 0;
 
-	if (strcmp(&line[tokeni], "->") == 0) {
+	isedge = (strcmp(&line[tokeni], "->") == 0);
+
+	if (isedge) {
 		/* Got an edge line */
 		dsti = get_next_and_terminate(&nexti, line, nexti);
 		if (dsti < 0)
-			goto out;
+			return 0;
 
-		tgline->dst = &line[dsti];
+		tgline.dst = &line[dsti];
 
 		valuei = skipws(line, nexti);
 		if (valuei < 0)
-			goto out;
-
-		ret = TG_EDGE_LINE;
+			return 0;
 	} else {
-		/* Got a job line: token index is a value index */
+		/* Got a node line: token index is a value index */
 		valuei = tokeni;
 
 		/* The rest of the line from offset cmdi is the actual
 		   job command that is executed */
 		cmdi = skipws(line, nexti);
 		if (cmdi < 0)
-			goto out;
+			return 0;
 
-		tgline->cmd = &line[cmdi];
-
-		ret = TG_NODE_LINE;
+		tgline.cmd = &line[cmdi];
 	}
 
-	tgline->value = strtod(&line[valuei], &endptr);
+	tgline.value = strtod(&line[valuei], &endptr);
 
-	if (*endptr != 0 || tgline->value < 0) {
-		ret = TG_INVALID_LINE;
-		goto out;
+	if (*endptr != 0 || tgline.value < 0) {
+		fprintf(stderr, "Invalid value: %s\n", &line[valuei]);
+		return 0;
 	}
 
- out:
-	return ret;
+	if (isedge) {
+		if (tg_add_edge(edgelist, &tgline))
+			return 0;
+	} else {
+		if (tg_add_node(nodelist, &tgline))
+			return 0;
+	}
+
+	return 1;
 }
 
 void tg_parse_jobfile(struct jobqueue *queue, char *jobfilename)
@@ -174,7 +173,6 @@ void tg_parse_jobfile(struct jobqueue *queue, char *jobfilename)
 	size_t lineno = 0;
 	struct vplist nodelist = VPLIST_INITIALIZER;
 	struct vplist edgelist = VPLIST_INITIALIZER;
-	struct tgline tgline;
 
 	if (tgjobs == NULL) {
 		tgjobs = calloc(1, sizeof(struct tgjobs));
@@ -204,17 +202,8 @@ void tg_parse_jobfile(struct jobqueue *queue, char *jobfilename)
 		if (!useful_line(line))
 			continue;
 
-		ret = parse_line(&tgline, line);
-
-		if (ret == TG_EDGE_LINE) {
-			if (tg_add_edge(&edgelist, &tgline))
-				dieerror("Can not add an edge: %s:%zd\n", jobfilename, lineno);
-		} else if (ret ==  TG_NODE_LINE) {
-			if (tg_add_node(&nodelist, &tgline))
-				dieerror("Can not add a node: %s:%zd\n", jobfilename, lineno);
-		} else {
-			die("Invalid line %zd in file %s\n", lineno, jobfilename);
-		}
+		if (!parse_line(&nodelist, &edgelist, line))
+			die("Invalid TG line: %s:%zd\n", jobfilename, lineno);
 	}
 
 	handle_nodes(tgjobs->tg, &nodelist);

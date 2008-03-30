@@ -12,7 +12,7 @@
   } while (0)
 
 #define dieerror(fmt, args...) do { \
-	fprintf(stderr, "pmr: " fmt ": %s\n", ## args, strerror(errno)); \
+	fprintf(stderr, fmt ": %s\n", ## args, strerror(errno)); \
 	exit(1); \
 } while(0)
 
