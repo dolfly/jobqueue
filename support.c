@@ -2,8 +2,16 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <string.h>
+#include <errno.h>
 
 #include "support.h"
+
+
+void can_not_open_file(const char *fname)
+{
+	fprintf(stderr, "Can't open file %s: %s\n", fname, strerror(errno));
+}
+
 
 int closeonexec(int fd)
 {

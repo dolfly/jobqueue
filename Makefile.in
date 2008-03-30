@@ -2,7 +2,7 @@ CC = {CC}
 CFLAGS = -Wall -O2 -g -I. -Iagl
 LDFLAGS = -lm
 PREFIX = {PREFIX}
-MODULES = directedgraph.o jobqueue.o queue.o schedule.o support.o vplist.o
+MODULES = directedgraph.o jobqueue.o queue.o schedule.o support.o tg.o vplist.o
 
 jobqueue:	$(MODULES)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(MODULES)
@@ -14,10 +14,11 @@ directedgraph.o:	agl/directedgraph.c agl/directedgraph.h
 	$(CC) $(CFLAGS) -c $<
 
 jobqueue.o:	jobqueue.c jobqueue.h vplist.h schedule.h support.h version.h queue.h
-queue.o:	queue.c queue.h support.h vplist.h agl/directedgraph.h
+queue.o:	queue.c queue.h support.h tg.h vplist.h
 schedule.o:	schedule.c schedule.h jobqueue.h vplist.h support.h queue.h
 support.o:	support.c support.h
 vplist.o:	vplist.c vplist.h
+tg.o:		tg.c tg.h queue.h support.h vplist.h agl/directedgraph.h
 
 install:	jobqueue
 	install jobqueue "$(PREFIX)/bin/"

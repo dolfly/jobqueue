@@ -16,6 +16,9 @@
 	exit(1); \
 } while(0)
 
+
+void can_not_open_file(const char *fname);
+
 int closeonexec(int fd);
 int pipe_closeonexec(int p[2]);
 
