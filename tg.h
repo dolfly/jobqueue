@@ -13,7 +13,6 @@ struct tgnode {
 };
 
 struct tgedge {
-	size_t lineno;
 	char *src;
 	char *dst;
 	double cost;
