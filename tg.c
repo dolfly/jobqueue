@@ -169,7 +169,6 @@ void tg_parse_jobfile(struct jobqueue *queue, char *jobfilename)
 	struct tgjobs *tgjobs = (struct tgjobs *) queue->data;
 	char line[MAX_CMD_SIZE];
 	FILE *jobfile;
-	ssize_t ret;
 	size_t lineno = 0;
 	struct vplist nodelist = VPLIST_INITIALIZER;
 	struct vplist edgelist = VPLIST_INITIALIZER;
@@ -192,12 +191,8 @@ void tg_parse_jobfile(struct jobqueue *queue, char *jobfilename)
 		return;
 	}
 
-	while (1) {
+	while (read_stripped_line(line, sizeof line, jobfile) >= 0) {
 		lineno++;
-
-		ret = read_stripped_line(line, sizeof line, jobfile);
-		if (ret < 0)
-			break;
 
 		if (!useful_line(line))
 			continue;
