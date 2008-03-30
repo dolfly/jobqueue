@@ -111,14 +111,14 @@ static int parse_line(struct vplist *nodelist, struct vplist *edgelist,
 	/* Get name index */
 	namei = get_next_and_terminate(&nexti, line, 0);
 	if (namei < 0)
-		return 0;
+		return -1;
 
 	tgline.src = &line[namei];
 
 	/* Get value index or "->" */
 	tokeni = get_next_and_terminate(&nexti, line, nexti);
 	if (tokeni < 0)
-		return 0;
+		return -1;
 
 	isedge = (strcmp(&line[tokeni], "->") == 0);
 
@@ -126,13 +126,13 @@ static int parse_line(struct vplist *nodelist, struct vplist *edgelist,
 		/* Got an edge line */
 		dsti = get_next_and_terminate(&nexti, line, nexti);
 		if (dsti < 0)
-			return 0;
+			return -1;
 
 		tgline.dst = &line[dsti];
 
 		valuei = skipws(line, nexti);
 		if (valuei < 0)
-			return 0;
+			return -1;
 	} else {
 		/* Got a node line: token index is a value index */
 		valuei = tokeni;
@@ -141,7 +141,7 @@ static int parse_line(struct vplist *nodelist, struct vplist *edgelist,
 		   job command that is executed */
 		cmdi = skipws(line, nexti);
 		if (cmdi < 0)
-			return 0;
+			return -1;
 
 		tgline.cmd = &line[cmdi];
 	}
@@ -150,18 +150,18 @@ static int parse_line(struct vplist *nodelist, struct vplist *edgelist,
 
 	if (*endptr != 0 || tgline.value < 0) {
 		fprintf(stderr, "Invalid value: %s\n", &line[valuei]);
-		return 0;
+		return -1;
 	}
 
 	if (isedge) {
 		if (tg_add_edge(edgelist, &tgline))
-			return 0;
+			return -1;
 	} else {
 		if (tg_add_node(nodelist, &tgline))
-			return 0;
+			return -1;
 	}
 
-	return 1;
+	return 0;
 }
 
 void tg_parse_jobfile(struct jobqueue *queue, char *jobfilename)
@@ -202,7 +202,7 @@ void tg_parse_jobfile(struct jobqueue *queue, char *jobfilename)
 		if (!useful_line(line))
 			continue;
 
-		if (!parse_line(&nodelist, &edgelist, line))
+		if (parse_line(&nodelist, &edgelist, line))
 			die("Invalid TG line: %s:%zd\n", jobfilename, lineno);
 	}
 
