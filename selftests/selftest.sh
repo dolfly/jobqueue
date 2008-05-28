@@ -37,7 +37,9 @@ fi
 
 name="./randommigration.py"
 echo "Running $name test"
-echo $name |$com -n64 -r 2>/dev/null
-if test "$?" != "0" ; then
-    echo "$name test failed"
-fi
+for i in $(seq 10) ; do
+    echo $name |$com -n64 -r 2>/dev/null
+    if test "$?" != "0" ; then
+	echo "$name test failed"
+    fi
+done
