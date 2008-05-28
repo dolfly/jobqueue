@@ -3,6 +3,6 @@
 
 #include "queue.h"
 
-void schedule(int nprocesses, struct jobqueue *queue);
+void schedule(int nprocesses, struct jobqueue *queue, int maxissue);
 
 #endif

@@ -41,6 +41,7 @@ struct job_ack {
 
 struct executionplace {
 	int jobsrunning;
+	int maxissue;
 	int broken;
 };
 
@@ -80,7 +81,7 @@ static void read_job_ack(size_t *jobsdone, int fd,
 	struct job_ack joback;
 	ssize_t ret;
 	struct executionplace *place;
-	char *machine;
+	struct machine *machine;
 	int jobdone;
 
 	ret = read(fd, &joback, sizeof joback);
@@ -104,12 +105,12 @@ static void read_job_ack(size_t *jobsdone, int fd,
 		/* The execution place is broken, prevent new jobs to it */
 		place->broken = 1;
 
-		if (machinelist.next != NULL) {
+		if (!vplist_is_empty(&machinelist)) {
 			machine = vplist_get(&machinelist, joback.place);
 			assert(machine != NULL);
-			fprintf(stderr, "Execution place %s ", machine);
+			fprintf(stderr, "Execution place %s ", machine->name);
 		} else {
-			fprintf(stderr, "Execution place %d ", joback.place);
+			fprintf(stderr, "Execution place %d ", joback.place + 1);
 		}
 
 		fprintf(stderr, "is broken.\n"
@@ -119,7 +120,7 @@ static void read_job_ack(size_t *jobsdone, int fd,
 	assert(place->jobsrunning > 0);
 
 	if (place->broken)
-		place->jobsrunning = maxissue;
+		place->jobsrunning = place->maxissue;
 	else
 		place->jobsrunning--;
 
@@ -200,14 +201,13 @@ static void run(struct job *job, int ps, int fd)
 	struct job_ack joback = {.job = job,
 				 .place = ps,
 	                         .result = JOB_FAILURE};
-	char *machine;
+	struct machine *m;
 
 	if (!vplist_is_empty(&machinelist)) {
+		m = vplist_get(&machinelist, ps);
+		assert(m != NULL);
 
-		machine = vplist_get(&machinelist, ps);
-		assert(machine != NULL);
-
-		ret = snprintf(cmd, sizeof cmd, "%s %s", job->cmd, machine);
+		ret = snprintf(cmd, sizeof cmd, "%s %s", job->cmd, m->name);
 	} else if (passexecutionplace) {
 		ret = snprintf(cmd, sizeof cmd, "%s %d", job->cmd, ps + 1);
 	} else {
@@ -246,10 +246,47 @@ static void run(struct job *job, int ps, int fd)
 }
 
 
-void schedule(int nplaces, struct jobqueue *queue)
+static struct executionplace *setup_execution_places(int nplaces, int maxissue)
 {
 	struct executionplace *places;
-	int pindex;
+	struct machine *m;
+	int i;
+
+	/* All processing stations are non-busy in the beginning -> calloc() */
+	places = calloc(nplaces, sizeof(places[0]));
+	if (places == NULL)
+		die("No memory for process array\n");
+
+	if (maxissue == -1) {
+		if (vplist_is_empty(&machinelist)) {
+			/* If maxissue is not given and there is no machine
+			 * list, use maxissue == 1 for all execution places
+			 */
+			maxissue = 1;
+		} else {
+			assert(vplist_len(&machinelist) == nplaces);
+
+			for (i = 0; i < nplaces; i++) {
+				m = vplist_get(&machinelist, i);
+				places[i].maxissue = m->maxissue;
+			}
+		}
+	}
+
+	/* A command line parameter overrides maxissue */
+	if (maxissue != -1) {
+		for (i = 0; i < nplaces; i++)
+			places[i].maxissue = maxissue;
+	}
+
+	return places;
+}
+
+
+void schedule(int nplaces, struct jobqueue *queue, int maxissue)
+{
+	struct executionplace *places;
+	int pind;
 	int ackpipe[2];
 	size_t jobsread = 0;
 	size_t jobsdone = 0;
@@ -266,27 +303,24 @@ void schedule(int nplaces, struct jobqueue *queue)
 	if (pipe_closeonexec(ackpipe))
 		die("Can not create a pipe: %s\n", strerror(errno));
 
-	/* All processing stations are non-busy in the beginning -> calloc() */
-	places = calloc(nplaces, sizeof(places[0]));
-	if (places == NULL)
-		die("No memory for process array\n");
+	places = setup_execution_places(nplaces, maxissue);
 
 	while (1) {
 		/* Find a free execution place */
 		allbroken = 1;
 
-		for (pindex = 0; pindex < nplaces; pindex++) {
-			if (!places[pindex].broken)
+		for (pind = 0; pind < nplaces; pind++) {
+			if (!places[pind].broken)
 				allbroken = 0;
 
-			if (places[pindex].jobsrunning < maxissue)
+			if (places[pind].jobsrunning < places[pind].maxissue)
 				break;
 		}
 
 		if (allbroken)
 			die("ALL EXECUTION PLACES HAVE DIED\n");
 
-		possibletoissue = (pindex < nplaces);
+		possibletoissue = (pind < nplaces);
 
 		somethingtoissue = (!vplist_is_empty(&failedjobs) || !exitmode);
 
@@ -317,7 +351,7 @@ void schedule(int nplaces, struct jobqueue *queue)
 				continue;
 			}
 
-			places[pindex].jobsrunning++;
+			places[pind].jobsrunning++;
 
 			child = fork();
 			if (child == 0) {
@@ -325,7 +359,7 @@ void schedule(int nplaces, struct jobqueue *queue)
 				close(0);
 				close(ackpipe[0]);
 
-				run(job, pindex, ackpipe[1]);
+				run(job, pind, ackpipe[1]);
 
 				exit(0);
 			} else if (child < 0) {

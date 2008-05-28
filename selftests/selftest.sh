@@ -43,3 +43,13 @@ for i in $(seq 10) ; do
 	echo "$name test failed"
     fi
 done
+
+name="variable processors machine list test"
+echo "Running $name"
+for i in $(seq 3) ; do echo ./sleepjob.sh ; done |../jobqueue -m machinelist > tfile
+if test $(cat tfile |grep -c foo) != "1" ; then
+    echo "$name failed"
+fi
+if test $(cat tfile |grep -c bar) != "2" ; then
+    echo "$name failed"
+fi

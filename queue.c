@@ -54,7 +54,7 @@ static int cq_next(char *cmd, size_t maxlen, struct jobqueue *queue)
 				break;
 		}
 
-		/* Read a new job and strip \n away from the command */
+		/* Read a new job and strip the line */
 		ret = read_stripped_line(cmd, maxlen, jobfile);
 		if (ret < 0) {
 			fclose(jobfile);

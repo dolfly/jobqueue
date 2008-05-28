@@ -4,6 +4,11 @@
 #include <stdio.h>
 #include "vplist.h"
 
+struct machine {
+	char *name;
+	int maxissue;
+};
+
 #define VERBOSE (verbosemode > 0)
 
 extern struct vplist machinelist;

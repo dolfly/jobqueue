@@ -16,6 +16,7 @@
 #include <math.h>
 #include <assert.h>
 #include <signal.h>
+#include <ctype.h>
 
 #include "version.h"
 #include "jobqueue.h"
@@ -23,8 +24,6 @@
 #include "support.h"
 
 struct vplist machinelist = VPLIST_INITIALIZER;
-
-int maxissue = 1;
 
 /* Pass an execution place id parameter for each job if
  * passexecutionplace != 0 */
@@ -55,12 +54,17 @@ static const char *USAGE =
 "    If command \"foo\" is executed from a job list, jobqueue executes \"foo x\",\n"
 "    where x is the execution place id.\n"
 "\n"
-" -m list / --machine-list list, read contents of list file, and count each\n"
+" -m list / --machine-list=list, read contents of list file, and count each\n"
 "    non-empty and non-comment line to be an execution place. Pass execution\n"
-"    place for each executed job as a parameter. The difference to -e is that\n"
-"    -e passes the execution place as an integer, but this option passes the\n"
-"    execution place as a name for the job. Also, this option implies \"-n x\",\n"
-"    where x is the number of names read from the file.\n"
+"    place for each executed job as a parameter. The execution place is usually\n"
+"    a user@host string. Optionally, the line may end with an integer meaning\n"
+"    the number of simultaneous jobs that can be executed on the given place.\n"
+"    If the number is not given, it is assumed to be 1. See examples below.\n"
+"\n"
+"    The difference to -e is that -e passes the execution\n"
+"    place number for the executed job, but this option passes the\n"
+"    execution place name rather than the integer. Also, this option\n"
+"    implies \"-n x\", where x is the number of names read from the file.\n"
 "\n"
 " --max-restart=x, implies -r / --restart-failed, but sets the maximum number\n"
 "    of restarts for each job\n"
@@ -89,10 +93,10 @@ static const char *USAGE =
 "...\n"
 "\n"
 "MACHINES file contains 4 machines:\n"
-"machine0\n"
-"machine1\n"
-"machine2\n"
-"machine3\n"
+"user@machine0\n"
+"user@machine1\n"
+"user@machine2\n"
+"user@machine3\n"
 "\n"
 "./myscript might do something like this:\n"
 "#!/bin/bash\n"
@@ -111,17 +115,26 @@ static const char *USAGE =
 "jobqueue -m MACHINES JOBS\n"
 "\n"
 "Execution will print something like this:\n"
-"machine0 data0\n"
-"machine1 data1\n"
-"machine2 data2\n"
-"machine1 data4\n"
-"machine3 data3\n"
-"machine0 data5\n"
-"machine1 data7\n"
-"machine2 data6\n"
+"user@machine0 data0\n"
+"user@machine1 data1\n"
+"user@machine2 data2\n"
+"user@machine1 data4\n"
+"user@machine3 data3\n"
+"user@machine0 data5\n"
+"user@machine1 data7\n"
+"user@machine2 data6\n"
 "All jobs done (8)\n"
 "\n"
-"EXAMPLE 2: run echo 5 times printing the execution place each time\n"
+"EXAMPLE 2: Specify arbitrary number of simultaneous jobs for each execution\n"
+"place. MACHINES file in EXAMPLE 1 could look like this:\n"
+"\n"
+"machine0    1\n"
+"machine1    2\n"
+"\n"
+"This means that machine0 can execute one simultaneous job at a time,\n"
+"and machine1 can execute two jobs simultaneously.\n"
+"\n"
+"EXAMPLE 3: Run echo 5 times printing the execution place each time\n"
 "\n"
 "\tfor i in $(seq 5) ; do echo echo ; done |jobqueue -n2 -e\n"
 "\n"
@@ -140,8 +153,10 @@ static int read_machine_list(const char *fname)
 	FILE *f;
 	char name[256];
 	size_t nmachines = 0;
-	char *nameptr;
 	ssize_t len;
+	int i;
+	struct machine *m;
+	char *end;
 
 	if (machinelist.next != NULL)
 		die("You may not specify machine list twice\n");
@@ -156,11 +171,41 @@ static int read_machine_list(const char *fname)
 		if (!useful_line(name))
 			continue;
 
-		nameptr = strdup(name);
-		if (nameptr == NULL)
-			die("Not enough memory for machine list\n");
+		m = malloc(sizeof(*m));
+		if (m == NULL)
+			die("Not enough memory for machine struct\n");
 
-		if (vplist_append(&machinelist, nameptr))
+		m->maxissue = 1;
+
+		m->name = strdup(name);
+		if (m->name == NULL)
+			die("Not enough memory for machine name\n");
+
+		i = skipws(m->name, 0);
+		if (i == -1) {
+			free(m);
+			m = NULL;
+			continue;
+		}
+
+		i = skipnws(m->name, i);
+		if (i >= 0) {
+			m->name[i] = 0;
+
+			i = skipws(m->name, i + 1);
+			if (i >= 0) {
+				m->maxissue = strtol(m->name + i, &end, 10);
+				if (*end != 0 && !isspace(*end))
+					m->maxissue = 0;
+			}
+		}
+
+		if (m->maxissue <= 0) {
+			fprintf(stderr, "Warning: machine list contains a bad number of issues for a node. Assuming single issue. (%s)\n", name);
+			m->maxissue = 1;
+		}
+
+		if (vplist_append(&machinelist, m))
 			die("Not enough memory for machine list\n");
 
 		nmachines++;
@@ -198,6 +243,7 @@ int main(int argc, char *argv[])
 	char *endptr;
 	struct jobqueue *queue;
 	int taskgraphmode = 0;
+	int maxissue = -1;
 
 	enum jobqueueoptions {
 		OPT_EXECUTION_PLACE = 'e',
@@ -302,7 +348,7 @@ int main(int argc, char *argv[])
 
 	queue = init_queue(argv, optind, argc, taskgraphmode);
 
-	schedule(nplaces, queue);
+	schedule(nplaces, queue, maxissue);
 
 	return 0;
 }
