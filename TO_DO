@@ -10,3 +10,7 @@ List of features to implement:
 		* pure simulation mode: do only scheduling
 
 	* write a man page
+
+	* time limit for node completing the job -> migrate
+
+	* re-try failed nodes after a given time period
