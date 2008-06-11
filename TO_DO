@@ -16,3 +16,5 @@ List of features to implement:
 	* re-try failed nodes after a given time period
 
 	* add timestamps, calculate total time, average time
+
+	* stop jobs, edit machinelist / jobs, continue jobs
