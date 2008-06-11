@@ -14,3 +14,5 @@ List of features to implement:
 	* time limit for node completing the job -> migrate
 
 	* re-try failed nodes after a given time period
+
+	* add timestamps, calculate total time, average time
