@@ -2,6 +2,14 @@
 #
 # git clone git://zakalwe.fi/jobqueue
 
+2008-08-24  Heikki Orsila <heikki.orsila@iki.fi>
+	* version 0.04
+	- Machine list (-m) now takes an optional integer specifying the
+	  number of simultaneous jobs for each machine. This can be useful
+	  when some machines have different number of processors than others.
+	  Compare this to using -x option. -x sets the same number
+	  for each machine.
+
 2008-03-22  Heikki Orsila <heikki.orsila@iki.fi>
 	* version 0.03
 	- Added --restart-failed and --max-restart=n options. These options
