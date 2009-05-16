@@ -33,19 +33,21 @@ int requeuefailedjobs;
 
 int verbosemode;
 
+size_t computeeta;
+
 static const char *USAGE =
 "\n"
 "SYNTAX:\n"
-"\tjobqueue [-e] [-n x] [-m list] [--max-restart=x] [-r] [-v] [--version]\n"
-"\t         [-x n] [FILE ...]\n"
+"\tjobqueue [-c x] [-e] [-n x] [-m list] [--max-restart=x] [-r] [-v]\n"
+"\t         [--version] [-x n] [FILE ...]\n"
 "\n"
 "jobqueue is a tool for executing lists of jobs on several processors or\n"
 "machines in parallel. jobqueue reads jobs (shell commands) from files. If no\n"
 "files are given, jobqueue reads jobs from stdin. Each job is executed in a\n"
 "shell environment (man 3 system).\n"
 "\n"
-" -n x / --nodes=x, jobqueue keeps at most x jobs running in parallel.\n"
-"    Jobqueue issues new jobs as older jobs are finished.\n"
+" -c x / --compute-eta=x, The total number of jobs is x. Compute ETA during\n"
+"                         execution.\n"
 "\n"
 " -e / --execution-place, each job is executed by passing an execution place id\n"
 "    as a parameter. The execution place defines a virtual execution place for\n"
@@ -68,6 +70,9 @@ static const char *USAGE =
 "\n"
 " --max-restart=x, implies -r / --restart-failed, but sets the maximum number\n"
 "    of restarts for each job\n"
+"\n"
+" -n x / --nodes=x, jobqueue keeps at most x jobs running in parallel.\n"
+"    Jobqueue issues new jobs as older jobs are finished.\n"
 "\n"
 " -r / --restart-failed, if a job that is executed returns an error code, it is\n"
 "    restarted (on some execution place). If the error code is 1, the\n"
@@ -244,8 +249,10 @@ int main(int argc, char *argv[])
 	struct jobqueue *queue;
 	int taskgraphmode = 0;
 	int maxissue = -1;
+	long njobs;
 
 	enum jobqueueoptions {
+		OPT_COMPUTE_ETA     = 'c',
 		OPT_EXECUTION_PLACE = 'e',
 		OPT_HELP            = 'h',
 		OPT_MACHINE_LIST    = 'm',
@@ -259,8 +266,9 @@ int main(int argc, char *argv[])
 	};
 
 	const struct option longopts[] = {
-		{.name = "help",            .has_arg = 0, .val = OPT_HELP},
+		{.name = "compute-eta",     .has_arg = 1, .val = OPT_COMPUTE_ETA},
 		{.name = "execution-place", .has_arg = 0, .val = OPT_EXECUTION_PLACE},
+		{.name = "help",            .has_arg = 0, .val = OPT_HELP},
 		{.name = "machine-list",    .has_arg = 1, .val = OPT_MACHINE_LIST},
 		{.name = "max-issue",       .has_arg = 1, .val = OPT_MAX_ISSUE},
 		{.name = "max-restart",     .has_arg = 1, .val = OPT_MAX_RESTART},
@@ -274,11 +282,18 @@ int main(int argc, char *argv[])
 	setup_child_handler();
 	
 	while (1) {
-		ret = getopt_long(argc, argv, "ehm:n:rtvx:", longopts, NULL);
+		ret = getopt_long(argc, argv, "c:ehm:n:rtvx:", longopts, NULL);
 		if (ret == -1)
 			break;
 
 		switch (ret) {
+		case OPT_COMPUTE_ETA:
+			njobs = strtol(optarg, &endptr, 10);
+			if (njobs < 0 || *endptr != 0)
+				die("Invalid number of jobs: %s\n", optarg);
+			computeeta = njobs;
+			break;
+
 		case OPT_EXECUTION_PLACE:
 			passexecutionplace = 1;
 			break;

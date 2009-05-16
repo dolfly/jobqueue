@@ -14,6 +14,7 @@
 #include <sys/time.h>
 #include <math.h>
 #include <assert.h>
+#include <time.h>
 
 #include "jobqueue.h"
 #include "schedule.h"
@@ -45,8 +46,41 @@ struct executionplace {
 	int broken;
 };
 
+#define ETAENTRIES 10
+static time_t etaarray[ETAENTRIES];
+static int etaind;
 
 static struct vplist failedjobs = VPLIST_INITIALIZER;
+
+static void compute_eta(size_t jobsdone)
+{
+	int i;
+	unsigned long d = 0;
+	time_t a, b;
+	double eta;
+	int nsums = 0;
+
+	if (computeeta <= jobsdone)
+		return;
+
+	etaarray[etaind] = time(NULL);
+	etaind = (etaind + 1) % ETAENTRIES;
+
+	for (i = 0; i < ETAENTRIES; i++) {
+		a = etaarray[i];
+		b = etaarray[(i + 1) % ETAENTRIES];
+		if (a == 0 || b == 0 || b < a)
+			continue;
+		d += b - a;
+		nsums++;
+	}
+
+	if (d == 0)
+		return;
+
+	eta = (((double) (computeeta - jobsdone)) * d) / nsums;
+	fprintf(stderr, "Completed %zu/%zu jobs: ETA %.0f\n", jobsdone, computeeta, eta);
+}
 
 static void free_job(struct job *job)
 {
@@ -143,6 +177,7 @@ static void read_job_ack(size_t *jobsdone, int fd,
 		free_job(joback.job);
 		joback.job = NULL;
 		(*jobsdone)++;
+		compute_eta(*jobsdone);
 	}
 }
 
@@ -365,7 +400,6 @@ void schedule(int nplaces, struct jobqueue *queue, int maxissue)
 			} else if (child < 0) {
 				die("Can not fork()\n");
 			}
-
 			continue;
 		}
 
