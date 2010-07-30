@@ -33,7 +33,7 @@ int requeuefailedjobs;
 
 int verbosemode;
 
-size_t computeeta;
+size_t compute_eta_jobs;
 
 static const char *USAGE =
 "\n"
@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
 			njobs = strtol(optarg, &endptr, 10);
 			if (njobs < 0 || *endptr != 0)
 				die("Invalid number of jobs: %s\n", optarg);
-			computeeta = njobs;
+			compute_eta_jobs = njobs;
 			break;
 
 		case OPT_EXECUTION_PLACE:

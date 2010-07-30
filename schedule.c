@@ -60,7 +60,7 @@ static void compute_eta(size_t jobsdone)
 	double eta;
 	int nsums = 0;
 
-	if (computeeta <= jobsdone)
+	if (compute_eta_jobs <= jobsdone)
 		return;
 
 	etaarray[etaind] = time(NULL);
@@ -78,8 +78,8 @@ static void compute_eta(size_t jobsdone)
 	if (d == 0)
 		return;
 
-	eta = (((double) (computeeta - jobsdone)) * d) / nsums;
-	fprintf(stderr, "Completed %zu/%zu jobs: ETA %.0f\n", jobsdone, computeeta, eta);
+	eta = (((double) (compute_eta_jobs - jobsdone)) * d) / nsums;
+	fprintf(stderr, "Completed %zu/%zu jobs: ETA %.0fs\n", jobsdone, compute_eta_jobs, eta);
 }
 
 static void free_job(struct job *job)

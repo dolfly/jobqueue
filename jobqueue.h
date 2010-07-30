@@ -16,6 +16,6 @@ extern int maxissue;
 extern int requeuefailedjobs;
 extern int passexecutionplace;
 extern int verbosemode;
-extern size_t computeeta;
+extern size_t compute_eta_jobs;
 
 #endif
